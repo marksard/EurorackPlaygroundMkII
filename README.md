@@ -18,9 +18,9 @@
 |:--|:--|
 |OUT 1~6|PWM out|
 
-With PWM output confirmation LED.
-2nd order CR lowpass filter cutoff frequency: 8.7kHz
-Opamp buffered out with bipolar and unipolar switching function.
+With PWM output confirmation LED.  
+2nd order CR lowpass filter cutoff frequency: 8.7kHz  
+Opamp buffered out with bipolar and unipolar switching function.  
 
 ### Controller
 

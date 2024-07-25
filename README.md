@@ -42,6 +42,9 @@ For application control
 
 ## Schematic
 
-![img](_data/)
+![img](_data/mkII_sch_01.png)  
+![img](_data/mkII_sch_02.png)  
+![img](_data/mkII_sch_03.png)  
+![img](_data/mkII_sch_04.png)  
 
 ## Demonstration

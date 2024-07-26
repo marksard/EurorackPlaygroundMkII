@@ -52,6 +52,7 @@ static int16_t backBeats[6];
 #define MENU_MAX (16)
 static int16_t menuIndex = 0;
 static uint8_t requiresUpdate = 1;
+static uint8_t encMode = 0;
 
 typedef struct
 {
@@ -64,22 +65,22 @@ const char offon[][5] = {"OFF", "ON"};
 SettingMenu set = {
     "CLOCK DIV",
     {
-        SettingItem16(0, 32767, 1, &bpm, "%cBPM: %d", NULL, 0),
-        SettingItem16(0, 1, 1, &trigMode, "%cMode: %s", trigModeName, 2),
-        SettingItem16(5, 100, 5, &trigDuration, "%cTrigDuration: %d", NULL, 0),
-        SettingItem16(1, 128, 1, &resetCount, "%cResetCount: %d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[0], "%cOUT1: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[1], "%cOUT2: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[2], "%cOUT3: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[3], "%cOUT4: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[4], "%cOUT5: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[5], "%cOUT6: /%d", NULL, 0),
-        SettingItem16(0, 1, 1, &backBeats[0], "%cOUT1 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[1], "%cOUT2 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[2], "%cOUT3 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[3], "%cOUT4 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[4], "%cOUT5 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[5], "%cOUT6 BB: %s", offon, 2),
+        SettingItem16(0, 32767, 1, &bpm, "BPM: %d", NULL, 0),
+        SettingItem16(0, 1, 1, &trigMode, "Mode: %s", trigModeName, 2),
+        SettingItem16(5, 100, 5, &trigDuration, "TrigDuration: %d", NULL, 0),
+        SettingItem16(1, 128, 1, &resetCount, "ResetCount: %d", NULL, 0),
+        SettingItem16(1, 256, 1, &divCount[0], "OUT1: /%d", NULL, 0),
+        SettingItem16(1, 256, 1, &divCount[1], "OUT2: /%d", NULL, 0),
+        SettingItem16(1, 256, 1, &divCount[2], "OUT3: /%d", NULL, 0),
+        SettingItem16(1, 256, 1, &divCount[3], "OUT4: /%d", NULL, 0),
+        SettingItem16(1, 256, 1, &divCount[4], "OUT5: /%d", NULL, 0),
+        SettingItem16(1, 256, 1, &divCount[5], "OUT6: /%d", NULL, 0),
+        SettingItem16(0, 1, 1, &backBeats[0], "OUT1 BB: %s", offon, 2),
+        SettingItem16(0, 1, 1, &backBeats[1], "OUT2 BB: %s", offon, 2),
+        SettingItem16(0, 1, 1, &backBeats[2], "OUT3 BB: %s", offon, 2),
+        SettingItem16(0, 1, 1, &backBeats[3], "OUT4 BB: %s", offon, 2),
+        SettingItem16(0, 1, 1, &backBeats[4], "OUT5 BB: %s", offon, 2),
+        SettingItem16(0, 1, 1, &backBeats[5], "OUT6 BB: %s", offon, 2),
     }};
 
 template <typename vs = int8_t>
@@ -248,7 +249,19 @@ void loop1()
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
 
-    requiresUpdate |= updateMenuIndex(btn0, btn1);
+    // requiresUpdate |= updateMenuIndex(btn0, btn1);
+    if (btn2 == 2)
+    {
+        encMode = (encMode + 1) & 1;
+        requiresUpdate |= 1;
+    }
+    else if (encMode == 0)
+    {
+        int menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
+        requiresUpdate |= menuIndex != menu ? 1 : 0;
+        menuIndex = menu;
+        encValue = 0;
+    }
     requiresUpdate |= set.items[menuIndex].add(encValue);
 
     if (btn2 == 1)

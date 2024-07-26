@@ -80,6 +80,7 @@ float rmDecay = 1.0;
 #define MENU_MAX (8)
 static int16_t menuIndex = 0;
 static uint8_t requiresUpdate = 1;
+static uint8_t encMode = 0;
 
 typedef struct
 {
@@ -90,14 +91,14 @@ typedef struct
 SettingMenu set = {
     "RHYTHM BOX",
     {
-        SettingItemF(0.1, 2.0, 0.01, &bdPitch, "%cBD Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &bdDecay, "%cBD Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 2.0, 0.01, &sdPitch, "%cSD Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &sdDecay, "%cSD Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 2.0, 0.01, &hhPitch, "%cHH Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &hhDecay, "%cHH Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 2.0, 0.01, &rmPitch, "%cRM Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &rmDecay, "%cRM Decay: %4.2f", NULL, 0),
+        SettingItemF(0.1, 2.0, 0.01, &bdPitch, "BD Pitch: %4.2f", NULL, 0),
+        SettingItemF(0.01, 1.0, 0.01, &bdDecay, "BD Decay: %4.2f", NULL, 0),
+        SettingItemF(0.1, 2.0, 0.01, &sdPitch, "SD Pitch: %4.2f", NULL, 0),
+        SettingItemF(0.01, 1.0, 0.01, &sdDecay, "SD Decay: %4.2f", NULL, 0),
+        SettingItemF(0.1, 2.0, 0.01, &hhPitch, "HH Pitch: %4.2f", NULL, 0),
+        SettingItemF(0.01, 1.0, 0.01, &hhDecay, "HH Decay: %4.2f", NULL, 0),
+        SettingItemF(0.1, 2.0, 0.01, &rmPitch, "RM Pitch: %4.2f", NULL, 0),
+        SettingItemF(0.01, 1.0, 0.01, &rmDecay, "RM Decay: %4.2f", NULL, 0),
     }};
 
 template <typename vs = int8_t>
@@ -144,7 +145,7 @@ void dispOLED()
     // gpio_put(LED1, HIGH);
     requiresUpdate = 0;
     u8g2.clearBuffer();
-    drawSetting(&u8g2, set.title, set.items, menuIndex, MENU_MAX);
+    drawSetting(&u8g2, set.title, set.items, menuIndex, MENU_MAX, encMode);
     u8g2.sendBuffer();
     // gpio_put(LED1, LOW);
 }
@@ -250,7 +251,19 @@ void loop1()
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
 
-    requiresUpdate |= updateMenuIndex(btn0, btn1);
+    // requiresUpdate |= updateMenuIndex(btn0, btn1);
+    if (btn2 == 2)
+    {
+        encMode = (encMode + 1) & 1;
+        requiresUpdate |= 1;
+    }
+    else if (encMode == 0)
+    {
+        int menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
+        requiresUpdate |= menuIndex != menu ? 1 : 0;
+        menuIndex = menu;
+        encValue = 0;
+    }
     requiresUpdate |= set.items[menuIndex].add(encValue);
 
     dispOLED();

@@ -65,15 +65,15 @@ const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "
 static const char onoff[][5] = {"OFF", "ON"};
 SettingMenu set[] = {
     {"SETTINGS", {
-        SettingItem16(0, 1, 1, &extSync, "%cSYNC IN: %d", onoff, 0),
-        SettingItem16(-1, 4, 1, &octUnder, "%cGEN OCT UNDER: %d", NULL, 0),
-        SettingItem16(-1, 4, 1, &octUpper, "%cGEN OCT UPPER: %d", NULL, 0),
-        SettingItem16(0, 3, 1, &gateMin, "%cGEN GATE MIN: %d", NULL, 0),
-        SettingItem16(1, 5, 1, &gateMax, "%cGEN GATE MAX: %d", NULL, 0),
-        SettingItem16(0, 4, 1, &gateInitial, "%cGEN GATE INI: %d", NULL, 0),
-        SettingItem16(0, 256, 1, &bpm, "%cBPM: %d", NULL, 0),
-        SettingItem16(0, 10, 1, &scale, "%  : %s", scaleNames, 10),
-        SettingItem16(0, 4, 1, &ppq, "%cPPQ: %d", NULL, 0)
+        SettingItem16(0, 1, 1, &extSync, "SYNC IN: %d", onoff, 0),
+        SettingItem16(-1, 4, 1, &octUnder, "GEN OCT UNDER: %d", NULL, 0),
+        SettingItem16(-1, 4, 1, &octUpper, "GEN OCT UPPER: %d", NULL, 0),
+        SettingItem16(0, 3, 1, &gateMin, "GEN GATE MIN: %d", NULL, 0),
+        SettingItem16(1, 5, 1, &gateMax, "GEN GATE MAX: %d", NULL, 0),
+        SettingItem16(0, 4, 1, &gateInitial, "GEN GATE INI: %d", NULL, 0),
+        SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
+        SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
+        SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0)
     }}};
 
 template <typename vs = int8_t>
@@ -236,10 +236,14 @@ void loop()
     uint16_t cv2Value = cv2.analogReadDirect();
 
     // requiresUpdate |= updateMenuIndex(btn0, btn1);
-    encMode = btn2 == 2 ? (encMode + 1) & 1 : encMode;
-    if (encMode == 0)
+    if (btn2 == 2)
     {
-        int menu = constrainCyclic(menuIndex + encValue, 0, MENU_MAX - 1);
+        encMode = (encMode + 1) & 1;
+        requiresUpdate |= 1;
+    }
+    else if (encMode == 0)
+    {
+        int menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
         requiresUpdate |= menuIndex != menu ? 1 : 0;
         menuIndex = menu;
         encValue = 0;

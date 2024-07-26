@@ -50,17 +50,16 @@ public:
 
     vs get() { return *_pAttachValue; }
 
-    void getDisp(char *disp_buf, bool selected)
+    void getDisp(char *disp_buf)
     {
-        char sel = selected ? '*' : ' ';
         if (_valueNamesCount > 0)
         {
             int value = (int)constrain(*_pAttachValue, 0, _valueNamesCount - 1);
-            sprintf(disp_buf, _pName, sel, _ValueNames[value]);
+            sprintf(disp_buf, _pName, _ValueNames[value]);
         }
         else
         {
-            sprintf(disp_buf, _pName, sel, *_pAttachValue);
+            sprintf(disp_buf, _pName, *_pAttachValue);
         }
     }
 
@@ -99,7 +98,7 @@ void drawSetting(U8G2 *pU8g2, const char *title, SettingItem<vs> *pSettingItems,
         if (i >= menuMax)
             break;
         bool sel = menuSlider == i ? true : false;
-        pSettingItems[menuIndex - menuSlider + i].getDisp(disp_buf[i], false);
+        pSettingItems[menuIndex - menuSlider + i].getDisp(disp_buf[i]);
         if (sel)
         {
             if (selector == 1)
@@ -113,9 +112,9 @@ void drawSetting(U8G2 *pU8g2, const char *title, SettingItem<vs> *pSettingItems,
         }
     }
 
-    pU8g2->drawStr(0, 16, disp_buf[0]);
-    pU8g2->drawStr(0, 32, disp_buf[1]);
-    pU8g2->drawStr(0, 48, disp_buf[2]);
+    pU8g2->drawStr(8, 16, disp_buf[0]);
+    pU8g2->drawStr(8, 32, disp_buf[1]);
+    pU8g2->drawStr(8, 48, disp_buf[2]);
 
     if (menuIndex < 1)
     {

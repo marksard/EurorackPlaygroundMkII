@@ -22,8 +22,7 @@
 #define PWM_RESO 2048         // 11bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
-// #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 10) // 120kHzくらいにはなる
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 10)
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -39,6 +38,7 @@ static SmoothAnalogRead cv2;
 static int16_t bpm = 0;
 static uint8_t clockGate = 0;
 static int16_t clockCount = 0;
+
 // setting values
 static EdgeChecker clockEdge;
 static TriggerOut triggerOuts[6];
@@ -46,7 +46,7 @@ static int16_t trigMode = 1;
 static int16_t trigDuration = 5;
 static int16_t resetCount = 32;
 static int16_t divCount[6] = {1, 2, 4, 8, 3, 5};
-static int16_t backBeats[6];
+static int16_t backBeats[6] = {0};
 
 // 画面周り
 #define MENU_MAX (16)
@@ -83,31 +83,31 @@ SettingMenu set = {
         SettingItem16(0, 1, 1, &backBeats[5], "OUT6 BB: %s", offon, 2),
     }};
 
-template <typename vs = int8_t>
-vs constrainCyclic(vs value, vs min, vs max)
-{
-    if (value > max)
-        return min;
-    if (value < min)
-        return max;
-    return value;
-}
+// template <typename vs = int8_t>
+// vs constrainCyclic(vs value, vs min, vs max)
+// {
+//     if (value > max)
+//         return min;
+//     if (value < min)
+//         return max;
+//     return value;
+// }
 
-inline uint8_t updateMenuIndex(uint8_t btn0, uint8_t btn1)
-{
-    if (btn0 == 2)
-    {
-        menuIndex = constrain(menuIndex - 1, 0, MENU_MAX - 1);
-        return 1;
-    }
-    if (btn1 == 2)
-    {
-        menuIndex = constrain(menuIndex + 1, 0, MENU_MAX - 1);
-        return 1;
-    }
+// inline uint8_t updateMenuIndex(uint8_t btn0, uint8_t btn1)
+// {
+//     if (btn0 == 2)
+//     {
+//         menuIndex = constrain(menuIndex - 1, 0, MENU_MAX - 1);
+//         return 1;
+//     }
+//     if (btn1 == 2)
+//     {
+//         menuIndex = constrain(menuIndex + 1, 0, MENU_MAX - 1);
+//         return 1;
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
 void initOLED()
 {
@@ -126,7 +126,7 @@ void dispOLED()
 
     requiresUpdate = 0;
     u8g2.clearBuffer();
-    drawSetting(&u8g2, set.title, set.items, menuIndex, MENU_MAX);
+    drawSetting(&u8g2, set.title, set.items, menuIndex, MENU_MAX, encMode);
     u8g2.sendBuffer();
 }
 
@@ -164,7 +164,6 @@ void setup()
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);
-    // pinMode(GATE, INPUT);
     clockEdge.init(GATE);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
@@ -198,10 +197,11 @@ void loop()
     requiresUpdate |= bpm != lastBpm ? 1 : 0;
     lastBpm = bpm;
 
+    int duration = clockEdge.getDurationMills();
+    duration = map(trigDuration, 0, 100, 0, duration);
+
     for (int i = 0; i < 6; ++i)
     {
-        int duration = clockEdge.getDurationMills();
-        duration = map(trigDuration, 0, 100, 0, duration);
         triggerOuts[i].setDuration(duration);
 
         int16_t divCountAdd = divCount[i];
@@ -243,7 +243,7 @@ void setup1()
 
 void loop1()
 {
-    uint16_t potValue = pot.analogRead(true);
+    // uint16_t potValue = pot.analogReadDropLow4bit();
     int8_t encValue = enc.getDirection(true);
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
@@ -264,7 +264,7 @@ void loop1()
     }
     requiresUpdate |= set.items[menuIndex].add(encValue);
 
-    if (btn2 == 1)
+    if (btn0 == 1)
     {
         clockCount = resetCount - 1;
     }

@@ -38,7 +38,7 @@ For application control
 
 ## Image
 
-![img]()
+![img](https://marksard.github.io/assets/photos/20240718_20240718-IMGP8787.jpg)
 
 ## Schematic
 

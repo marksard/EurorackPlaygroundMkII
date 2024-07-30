@@ -88,8 +88,9 @@ private:
             _pU8g2->drawStr(x + 10, y + 10, disp_buf);
         }
 
-        _pU8g2->drawFrame(x, y, 16, 10);
-        _pU8g2->drawFrame(x, y + 10, 16, 10);
+        // _pU8g2->drawFrame(x, y, 16, 10);
+        // _pU8g2->drawFrame(x, y + 10, 16, 10);
+        _pU8g2->drawFrame(x, y, 16, 20);
     }
 
     uint8_t pos2X(uint8_t value) { return ((value % 8) * 16) + _origin_x; }

@@ -76,31 +76,31 @@ SettingMenu set[] = {
         SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0)
     }}};
 
-template <typename vs = int8_t>
-vs constrainCyclic(vs value, vs min, vs max)
-{
-    if (value > max)
-        return min;
-    if (value < min)
-        return max;
-    return value;
-}
+// template <typename vs = int8_t>
+// vs constrainCyclic(vs value, vs min, vs max)
+// {
+//     if (value > max)
+//         return min;
+//     if (value < min)
+//         return max;
+//     return value;
+// }
 
-inline uint8_t updateMenuIndex(uint8_t btn0, uint8_t btn1)
-{
-    if (btn0 == 2)
-    {
-        menuIndex = constrainCyclic(menuIndex - 1, 0, MENU_MAX - 1);
-        return 1;
-    }
-    if (btn1 == 2)
-    {
-        menuIndex = constrainCyclic(menuIndex + 1, 0, MENU_MAX - 1);
-        return 1;
-    }
+// inline uint8_t updateMenuIndex(uint8_t btn0, uint8_t btn1)
+// {
+//     if (btn0 == 2)
+//     {
+//         menuIndex = constrainCyclic(menuIndex - 1, 0, MENU_MAX - 1);
+//         return 1;
+//     }
+//     if (btn1 == 2)
+//     {
+//         menuIndex = constrainCyclic(menuIndex + 1, 0, MENU_MAX - 1);
+//         return 1;
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
 void initOLED()
 {
@@ -120,7 +120,8 @@ void dispOLED()
 
     sspc.updateLED();
 
-    u8g2.clearBuffer();
+    if (requiresUpdate)
+        u8g2.clearBuffer();
 
     u8g2.setFont(u8g2_font_7x14B_tf);
     switch (menuIndex)
@@ -165,7 +166,10 @@ void dispOLED()
     u8g2.setFont(u8g2_font_5x8_tf);
     sspc.updateDisplay();
 
-    u8g2.sendBuffer();
+    if (requiresUpdate)
+        u8g2.sendBuffer();
+    else
+        u8g2.updateDisplay();
 }
 
 void interruptPWM()
@@ -173,7 +177,8 @@ void interruptPWM()
     pwm_clear_irq(interruptSliceNum);
     // gpio_put(LED1, HIGH);
 
-    sspc.updateProcedure();
+    requiresUpdate |= sspc.updateProcedure();
+    // sspc.updateProcedure();
 
     // gpio_put(LED1, LOW);
 }

@@ -37,9 +37,10 @@ public:
         , _gateMax(0, 5, 0, 5)
         , _gateInitial(0, 5, 0, 5)
         , _syncIn(GATE)
-        , _gateOut(OUT2)
-        , _accOut(OUT4)
-        , _syncOut(OUT3)
+        , _syncOut(OUT1)
+        , _accOut(OUT2)
+        , _gateOut(OUT3)
+        , _randOut(OUT4)
     {
         _pTrigger = NULL;
         _clock = CLOCK::IGNORE;
@@ -58,6 +59,7 @@ public:
         _gateOut.setDuration(10);
         _accOut.setDuration(200);
         _syncOut.setDuration(10);
+        _randOut.setDuration(10);
 
         setClockMode(CLOCK::INT);
     }
@@ -147,6 +149,7 @@ public:
 
     uint8_t getBPM() { return _pTrigger->getBPM(); }
     int8_t getScale() { return _ssm._scaleIndex.get(); }
+    uint8_t getScaleKey(uint8_t scale, uint8_t key) { return _ssm.getScaleKey(scale, key); }
 
     void addPPQ(int8_t value)
     {
@@ -267,8 +270,10 @@ public:
 
     void setVOct(uint16_t value)
     {
-        pwm_set_gpio_level(OUT1, value);
+        pwm_set_gpio_level(OUT5, value);
     }
+
+    bool getPlayGate() { return _ssm.getPlayGate() > 0; }
 
     void addOctUnder(int8_t value) { _octUnder.add(value); }
     void addOctUpper(int8_t value) { _octUpper.add(value); }
@@ -298,11 +303,14 @@ public:
             _accOut.update(_ssm.getPlayAcc() != 0);
             _syncOut.setDuration(length >> 2);
             _syncOut.update(1);
+            _randOut.setDuration(length);
+            _randOut.update(_ssm.rand(2));
         }
         else
         {
             _accOut.update(0);
             _syncOut.update(0);
+            _randOut.update(0);
         }
 
         uint8_t playGate = _ssm.getPlayGate();
@@ -322,10 +330,12 @@ public:
 
     int8_t updateProcedure()
     {
+        int8_t result = 0;
+
         if (!_pTrigger->ready())
         {
             updateGateOut(false);
-            return 0;
+            return result;
         }
 
         if (_seqReadyCount >= _seqReadyCountMax)
@@ -333,6 +343,7 @@ public:
             _seqReadyCount = 0;
             _ssm.keyStep.nextPlayStep();
             _ssm.gateStep.nextPlayStep();
+            result = 1;
         }
 
         if (_seqReadyCount == 0)
@@ -362,7 +373,7 @@ public:
 
         _seqReadyCount++;
 
-        return 1;
+        return result;
     }
 
     void updateDisplay()
@@ -412,6 +423,7 @@ public:
     void generateSequence(bool resetSyncCount = true)
     {
         _seqReadyCount = 0;
+        // _ssm.randomSeed(micros());
         ::generateSequence(&_ssm, _octUnder.get(), _octUpper.get(),
                            _gateMin.get(), _gateMax.get(), _gateInitial.get());
         _ssm.keyStep.setMode(Step::Mode::Forward);
@@ -446,6 +458,7 @@ private:
     TriggerOut _gateOut;
     TriggerOut _accOut;
     TriggerOut _syncOut;
+    TriggerOut _randOut;
 
     uint8_t _ppq;
 };

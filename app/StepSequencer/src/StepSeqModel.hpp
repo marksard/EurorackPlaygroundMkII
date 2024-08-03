@@ -7,6 +7,7 @@
 
 #pragma once
 #include <Arduino.h>
+#include "../../commonlib/common/RandomFast.hpp"
 
 #define DEF_MAX_STEP 16
 #define DEF_MAX_STEP_M1 (DEF_MAX_STEP - 1)
@@ -263,8 +264,13 @@ public:
     uint8_t getPlayGate() { return constrain(_gates[gateStep.pos.get()] + gateLenAdder.get(), 0, (uint8_t)Gate::G); }
 
     uint8_t getPlayNote() { return (constrain(getPlayOctave() + octaveAdder.get(), 0, 5) * 12) + scales[_scaleIndex.get()][getPlayKey()]; }
+    uint8_t getScaleKey(uint8_t scale, uint8_t key) { return scales[scale][key]; }
 
     uint8_t getGateDulation() { return GateDulation[getPlayGate()]; }
+
+    void randomSeed(ulong seed) { _rand.randomSeed(seed); }
+    int16_t rand(int16_t max) { return _rand.getRandom16(0, max); }
+    int16_t rand(int16_t min, int16_t max) { return _rand.getRandom16(min, max); }
 
     void moveSeq(SeqMove move)
     {
@@ -358,6 +364,7 @@ public:
     uint8_t _accs[MAX_STEP];
     StepSeqModel::Gate _gates[MAX_STEP];
     LimitValue<int8_t> _scaleIndex;
+    RandomFast _rand;
 
 private:
 
@@ -373,6 +380,34 @@ private:
 };
 
 void generateSequence(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
+{
+    Serial.println("generateSequence\n");
+    pssm->randomSeed(micros());
+    byte geteSelect = pssm->rand(MAX_GATE_TIMINGS);
+
+    for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
+    {
+        // タイミングマップにランダムでタイミングをorして足す
+        StepSeqModel::Gate gate = gateMap[geteSelect][i] == 1 ? 
+        (StepSeqModel::Gate)pssm->rand((StepSeqModel::Gate)gateMin, (StepSeqModel::Gate)gateMax) : 
+        (StepSeqModel::Gate)gateInitial;
+        pssm->setGate(i, gate);
+
+        // 変更前のメロディーラインをランダムに残して繋がりを持たせる
+        if (pssm->rand(2))
+        {
+            continue;
+        }
+
+        // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
+        // 0 ~ 24 + スケール音
+        pssm->setOctave(i, 1 + (pssm->rand(octUnder, octUpper)));
+        pssm->setKey(i, pssm->rand(MAX_SCALE_KEY));
+        pssm->setAcc(i, gate != StepSeqModel::Gate::_ && pssm->rand(0, 6) == 1 ? 1 : 0);
+    }
+}
+
+void generateSequenceNormalRand(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
 {
     Serial.println("generateSequence\n");
     randomSeed(micros());
@@ -400,27 +435,6 @@ void generateSequence(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8
     }
 }
 
-// void generateTestToneSequence(StepSeqModel *pssm)
-// {
-//     Serial.println("generateTestToneSequence\n");
-//     byte geteSelect = random(MAX_GATE_TIMINGS);
-
-//     for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
-//     {
-//         if (i < 11)
-//         {
-//             pssm->setGate(i, i&1?StepSeqModel::Gate::_ : StepSeqModel::Gate::G);
-//         }
-//         else{
-//             pssm->setGate(i, i&1?StepSeqModel::Gate::S : StepSeqModel::Gate::H);
-//         }
-//         pssm->setOctave(i, (i>>1)%6);
-//         pssm->setKey(i, 0);
-//         pssm->setAcc(i, 0);
-//      }
-// }
-
-
 void resetSequence(StepSeqModel *pssm)
 {
     Serial.println("resetSequence\n");
@@ -434,15 +448,3 @@ void resetSequence(StepSeqModel *pssm)
         pssm->setAcc(i, 0);
      }
 }
-
-// void resetGate(StepSeqModel *pssm)
-// {
-//     Serial.println("resetGate\n");
-//     byte geteSelect = random(MAX_GATE_TIMINGS);
-
-//     for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
-//     {
-//         pssm->setGate(i, StepSeqModel::Gate::H);
-//         pssm->setAcc(i, 0);
-//      }
-// }

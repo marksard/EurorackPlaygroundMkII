@@ -36,6 +36,7 @@ static SmoothAnalogRead vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 
+// step seq
 static StepSeqPlayControl sspc(&u8g2);
 static int16_t extSync;
 static int16_t octUnder;
@@ -47,6 +48,10 @@ static int16_t bpm;
 static int16_t scale;
 static int16_t ppq;
 
+// quantizer
+const int16_t halfReso = (ADC_RESO >> 1);
+// static float voltPerTone = 4095.0 / 12.0 / 5.0;
+static int16_t quantizeOut = 0;
 
 // 画面周り
 #define MENU_MAX (17)
@@ -75,32 +80,6 @@ SettingMenu set[] = {
         SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
         SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0)
     }}};
-
-// template <typename vs = int8_t>
-// vs constrainCyclic(vs value, vs min, vs max)
-// {
-//     if (value > max)
-//         return min;
-//     if (value < min)
-//         return max;
-//     return value;
-// }
-
-// inline uint8_t updateMenuIndex(uint8_t btn0, uint8_t btn1)
-// {
-//     if (btn0 == 2)
-//     {
-//         menuIndex = constrainCyclic(menuIndex - 1, 0, MENU_MAX - 1);
-//         return 1;
-//     }
-//     if (btn1 == 2)
-//     {
-//         menuIndex = constrainCyclic(menuIndex + 1, 0, MENU_MAX - 1);
-//         return 1;
-//     }
-
-//     return 0;
-// }
 
 void initOLED()
 {
@@ -177,8 +156,14 @@ void interruptPWM()
     pwm_clear_irq(interruptSliceNum);
     // gpio_put(LED1, HIGH);
 
-    requiresUpdate |= sspc.updateProcedure();
-    // sspc.updateProcedure();
+    int8_t ready = sspc.updateProcedure();
+
+    if (ready && sspc.getPlayGate())
+    {
+        pwm_set_gpio_level(OUT6, quantizeOut);
+    }
+
+    requiresUpdate |= ready;
 
     // gpio_put(LED1, LOW);
 }
@@ -194,7 +179,7 @@ void setup()
     analogReadResolution(12);
 
     pot.init(POT1);
-    enc.init(EC1A, EC1B);
+    enc.init(EC1A, EC1B, true);
     buttons[0].init(BTN1);
     buttons[1].init(BTN2);
     buttons[2].init(BTN3);
@@ -203,13 +188,9 @@ void setup()
     cv2.init(CV2);
     pinMode(GATE, INPUT);
 
-    initPWM(OUT1, PWM_RESO);
+    initPWM(OUT5, PWM_RESO);
+    initPWM(OUT6, PWM_RESO);
 
-    pinMode(OUT2, OUTPUT);
-    pinMode(OUT3, OUTPUT);
-    pinMode(OUT4, OUTPUT);
-    pinMode(OUT5, OUTPUT);
-    pinMode(OUT6, OUTPUT);
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
 
@@ -231,14 +212,39 @@ void setup()
 
 void loop()
 {
-    uint16_t potValue = pot.analogReadDropLow4bit();
-    int8_t encValue = enc.getDirection(true);
+    pot.analogReadDropLow4bit();
+    enc.getDirection(false);
+    uint16_t voct = vOct.analogReadDirect();
+    int16_t cv1Value = cv1.analogReadDirect();
+    uint16_t cv2Value = cv2.analogReadDirect();
+
+    int8_t cv = map(cv1Value, 0, 4096, 0, 36);
+    int8_t oct = cv / 7;
+    int8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
+    quantizeOut = ((oct * 12) + semi) * voltPerTone;
+
+    // Serial.print(cv1Value);
+    // Serial.print(", ");
+    // Serial.print(cv2Value);
+    // Serial.println();
+
+    sleep_ms(1);
+}
+
+void setup1()
+{
+    initOLED();
+    updateOLED.setMills(33);
+    updateOLED.start();
+}
+
+void loop1()
+{
+    uint16_t potValue = pot.getValue();
+    int8_t encValue = enc.getValue();
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
-    uint16_t voct = vOct.analogReadDirect();
-    int16_t cv1Value = cv1.analogReadDirect() - (ADC_RESO >> 1);
-    uint16_t cv2Value = cv2.analogReadDirect();
 
     // requiresUpdate |= updateMenuIndex(btn0, btn1);
     if (btn2 == 2)
@@ -323,18 +329,6 @@ void loop()
         break;
     }
 
-    sleep_ms(1);
-}
-
-void setup1()
-{
-    initOLED();
-    updateOLED.setMills(33);
-    updateOLED.start();
-}
-
-void loop1()
-{
     if (!updateOLED.ready())
     {
         sleep_ms(1);

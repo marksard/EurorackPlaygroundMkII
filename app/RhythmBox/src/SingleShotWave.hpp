@@ -1,6 +1,6 @@
 /*!
  * Oscillator class
- * Copyright 2023 marksard
+ * Copyright 2024 marksard
  * This software is released under the MIT license.
  * see https://opensource.org/licenses/MIT
  */
@@ -8,6 +8,7 @@
 #pragma once
 #include <Arduino.h>
 
+// pwm reso 2048, bias 1023
 const uint16_t decayCurveSize = 1024; 
 const uint16_t decayCurve[1024] = {
 1024,1021,1019,1017,1014,1012,1010,1007,1005,1003,1001,998,996,994,992,989,
@@ -81,28 +82,32 @@ class SingleShotWave
 public:
     SingleShotWave(const vs wave[], uint32_t waveLength)
     {
-        _pWave = wave;
-        _waveLength = waveLength;
+        init(wave, waveLength);
     }
 
-    void init()
+    void init(const vs wave[], uint32_t waveLength)
     {
+        _pWave = wave;
+        _waveLength = waveLength;
         _start = false;
         _waveIndex = 0.0;
-        _speed = 1.0;
-        _bias = 1024;
+        _pitch = 1.0;
+        _volume = 1.0;
+        _bias = 1023;
         _decayIndex = 0.0;
         _decayValue = 0;
         _lastEdge = 0;
         // _lastValue = _bias;
+        _mute = false;
     }
 
     uint16_t updateWave()
     {
         if (!_start)
             return _bias;
+
         int16_t value = _pWave[(int)_waveIndex];
-        _waveIndex += _speed;
+        _waveIndex += _pitch;
         if (_waveIndex >= _waveLength)
         {
             _start = false;
@@ -111,6 +116,9 @@ public:
             // _lastValue = _bias;
             return _bias;
         }
+
+        if (_mute)
+            return _bias;
 
         value = (uint16_t)((((int32_t)value * _decayValue) >> 10) + _bias);
         // simplest linear interpolation
@@ -130,12 +138,10 @@ public:
         _lastEdge = edge;
     }
 
-    void setSpeed(float value) { _speed = value; }
-
     void updateDecay(float value)
     {
         float decay = (1.0 - value);
-        _decayValue = decayCurve[(int)_decayIndex];
+        _decayValue = decayCurve[(int)_decayIndex] * _volume;
         _decayIndex += decay;
         if (_decayIndex >= decayCurveSize)
         {
@@ -143,14 +149,20 @@ public:
         }
     }
 
-    void setBias(vs bias) { _bias = bias; }
+    void setSpeed(float value) { _pitch = value; }
+
+    void setBias(vs value) { _bias = value; }
+    void setMute(bool value) { _mute = value; }
+    void setVolume(float value) { _volume = value; }
 
 private:
     const vs *_pWave;
     uint32_t _waveLength;
     bool _start;
+    bool _mute;
     float _waveIndex;
-    float _speed;
+    float _pitch;
+    float _volume;
     vs _bias;
     // vs _lastValue;
     float _decayIndex;

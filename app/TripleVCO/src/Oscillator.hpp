@@ -86,7 +86,7 @@ public:
 
 public:
     Oscillator()
-        : _phaseShift(0, 99, 0, 99), _folding(0, 50, 0, 50)
+        : _phaseShift(0, 99, 0, 99), _folding(0, 800, 0, 800)
     {
     }
 
@@ -106,6 +106,7 @@ public:
         // _halfReso = _reso >> 1;
         _coarse = 0.0;
         _lastValue = 0;
+        _isFolding = false;
     }
 
     // value範囲＝DAC、PWM出力範囲：0-4095(12bit)
@@ -133,11 +134,13 @@ public:
             break;
         case Wave::TRI:
             value = index < _widthHalf ? indexHeight * 2 : (_heightM1 - indexHeight) * 2;
-            value = applyEzFolding(value);
+            if (_isFolding)
+                value = applyEzFolding(value);
             break;
         case Wave::SINE:
             value = sine_11bit[index];
-            value = applyEzFolding(value);
+            if (_isFolding)
+                value = applyEzFolding(value);
             break;
         case Wave::NOISE:
             value = getRandom16(WAVE_HEIGHT);
@@ -182,17 +185,19 @@ public:
 
     void addFolding(int8_t value)
     {
-        _folding.add(value);
+        _folding.add(value << 4);
     }
 
     bool setFolding(int8_t value)
     {
-        bool result = _folding.get() != value;
-        _folding.set(value);
+        bool result = _folding.get() != (value << 4);
+        _folding.set(value << 4);
         return result;
     }
 
-    int8_t getFolding() { return (_folding.get()); }
+    int8_t getFolding() { return _folding.get() >> 4; }
+
+    void startFolding(int8_t value) { _isFolding = value != 0 ? true : false; }
 
     bool setNoteNameFromFrequency(float frequency)
     {
@@ -261,25 +266,28 @@ private:
     float _interruptClock;
     uint16_t _halfReso;
     LimitValue<int8_t> _phaseShift;
-    LimitValue<int8_t> _folding;
+    LimitValue<int16_t> _folding;
     char _freqName[8];
     float _coarse;
     uint16_t _lastValue;
     uint32_t m_w = 1;
     uint32_t m_z = 2;
+    bool _isFolding;
 
     // Light-weight Wavefolder
-    uint16_t applyEzFolding(uint16_t value)
+    inline uint16_t applyEzFolding(uint16_t value)
     {
-        if (value > (_heightM1 - (_folding.get() * 15)))
-            value = (_heightM1 - (_folding.get() * 15)) - (value - (_heightM1 - (_folding.get() * 15)));
-        if (value < (_folding.get() * 15))
-            value = (_folding.get() * 15) + ((_folding.get() * 15) - value);
-        value = map(value, (_folding.get() * 15), (_heightM1 - (_folding.get() * 15)), 0, _heightM1);
+        int16_t foldLower = _folding.get();
+        int16_t foldUpper = (_heightM1 - foldLower);
+        if (value > foldUpper)
+            value = foldUpper - (value - foldUpper);
+        if (value < foldLower)
+            value = foldLower + (foldLower - value);
+        value = map(value, foldLower, foldUpper, 0, _heightM1);
         return value;
     }
 
-    uint32_t getRandomFast()
+    inline uint32_t getRandomFast()
     {
         // Multiply-with-carry
         m_z = 36969L * (m_z & 65535L) + (m_z >> 16);

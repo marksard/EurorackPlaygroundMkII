@@ -40,7 +40,6 @@ public:
         , _syncOut(OUT1)
         , _accOut(OUT2)
         , _gateOut(OUT3)
-        , _randOut(OUT4)
     {
         _pTrigger = NULL;
         _clock = CLOCK::IGNORE;
@@ -59,7 +58,6 @@ public:
         _gateOut.setDuration(10);
         _accOut.setDuration(200);
         _syncOut.setDuration(10);
-        _randOut.setDuration(10);
 
         setClockMode(CLOCK::INT);
     }
@@ -133,6 +131,8 @@ public:
 
     void addBPM(int8_t value)
     {
+        if (_clock == CLOCK::EXT)
+            return;
         if (value == 0)
             return;
         uint8_t bpm = constrain(_pTrigger->getBPM() + value, 0, 255);
@@ -141,6 +141,8 @@ public:
 
     void setBPM(byte bpm, byte bpmReso)
     {
+        if (_clock == CLOCK::EXT)
+            return;
         if (_pTrigger->setBPM(bpm, bpmReso))
         {
             _seqReadyCountMax = bpmReso / 4;
@@ -292,25 +294,35 @@ public:
     int8_t getGateMax() { return _gateMax.get(); }
     int8_t getGateInitial() { return _gateInitial.get(); }
 
+    int getStepDulation()
+    {
+        int length = _pTrigger->getMills() * _seqReadyCountMax;
+        return length;
+    }
+
     void updateGateOut(bool updateDuration)
     {
         if (updateDuration)
         {
-            int length = _pTrigger->getMills() * _seqReadyCountMax;
+            int length = getStepDulation();
             int duration = _ssm.getGateDulation();
-            length = map(duration, 0, 100, 0, length);
-            _gateOut.setDuration(length);
-            _accOut.update(_ssm.getPlayAcc() != 0);
+            Serial.print(duration);
+            Serial.print(",");
+            Serial.print(length);
+            Serial.print(",");
             _syncOut.setDuration(length >> 2);
             _syncOut.update(1);
-            _randOut.setDuration(length);
-            _randOut.update(_ssm.rand(2));
+            length = map(duration, 0, 100, 0, length);
+            Serial.print(length);
+            Serial.print(",");
+            Serial.println();
+            _gateOut.setDuration(length);
+            _accOut.update(_ssm.getPlayAcc() != 0);
         }
         else
         {
             _accOut.update(0);
             _syncOut.update(0);
-            _randOut.update(0);
         }
 
         uint8_t playGate = _ssm.getPlayGate();
@@ -458,7 +470,6 @@ private:
     TriggerOut _gateOut;
     TriggerOut _accOut;
     TriggerOut _syncOut;
-    TriggerOut _randOut;
 
     uint8_t _ppq;
 };

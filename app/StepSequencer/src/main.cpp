@@ -12,6 +12,7 @@
 #include "../../commonlib/common/SmoothAnalogRead.hpp"
 #include "../../commonlib/common/RotaryEncoder.hpp"
 #include "../../commonlib/ui_common/SettingItem.hpp"
+#include "../../commonlib/common/Euclidean.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
 #include "../../commonlib/common/pwm_wrapper.h"
 #include "StepSeqModel.hpp"
@@ -52,9 +53,14 @@ static int16_t ppq;
 const int16_t halfReso = (ADC_RESO >> 1);
 // static float voltPerTone = 4095.0 / 12.0 / 5.0;
 static int16_t quantizeOut = 0;
+static Euclidean euclid;
+static TriggerOut euclidTrig;
+static int16_t euclidOnsets;
+static int16_t euclidStepSize;
+static int16_t holdTrigger;
 
 // 画面周り
-#define MENU_MAX (17)
+#define MENU_MAX (8+12)
 static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
@@ -63,14 +69,17 @@ PollingTimeEvent updateOLED;
 typedef struct
 {
     char title[12];
-    SettingItem16 items[9];
+    SettingItem16 items[12];
 } SettingMenu;
 
-const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
+static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
 static const char onoff[][5] = {"OFF", "ON"};
+static const char holdTriggers[][5] = {"CLK", "EUC"};
 SettingMenu set[] = {
     {"SETTINGS", {
-        SettingItem16(0, 1, 1, &extSync, "SYNC IN: %d", onoff, 0),
+        SettingItem16(1, 16, 1, &euclidOnsets, "EUCRID ONSETS: %d", NULL, 0),
+        SettingItem16(1, 16, 1, &euclidStepSize, "EUCRID STEP: %d", NULL, 0),
+        SettingItem16(0, 1, 1, &holdTrigger, "HOLD TIGGER: %s", holdTriggers, 2),
         SettingItem16(-1, 4, 1, &octUnder, "GEN OCT UNDER: %d", NULL, 0),
         SettingItem16(-1, 4, 1, &octUpper, "GEN OCT UPPER: %d", NULL, 0),
         SettingItem16(0, 3, 1, &gateMin, "GEN GATE MIN: %d", NULL, 0),
@@ -78,7 +87,8 @@ SettingMenu set[] = {
         SettingItem16(0, 4, 1, &gateInitial, "GEN GATE INI: %d", NULL, 0),
         SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
         SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
-        SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0)
+        SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0),
+        SettingItem16(0, 1, 1, &extSync, "SYNC IN: %d", onoff, 0),
     }}};
 
 void initOLED()
@@ -158,9 +168,20 @@ void interruptPWM()
 
     int8_t ready = sspc.updateProcedure();
 
-    if (ready && sspc.getPlayGate())
+    // quantizer
+    if (ready)
     {
-        pwm_set_gpio_level(OUT6, quantizeOut);
+        int8_t trig = euclid.getNext();
+        euclidTrig.update(trig);
+        if ((holdTrigger == 0 && ready) ||
+            (holdTrigger == 1 && trig))
+        {
+            pwm_set_gpio_level(OUT6, quantizeOut);
+        }
+    }
+    else
+    {
+        euclidTrig.update(LOW);
     }
 
     requiresUpdate |= ready;
@@ -207,21 +228,32 @@ void setup()
     gateMax = sspc.getGateMax();
     gateInitial = sspc.getGateInitial();
 
+    euclidOnsets = 5;
+    euclidStepSize = 16;
+    holdTrigger = 0;
+
+    euclidTrig.init(OUT4);
+    euclid.generate(euclidOnsets, euclidStepSize);
+
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }
 
 void loop()
 {
     pot.analogReadDropLow4bit();
-    enc.getDirection(false);
+    enc.getDirection(true);
     uint16_t voct = vOct.analogReadDirect();
     int16_t cv1Value = cv1.analogReadDirect();
     uint16_t cv2Value = cv2.analogReadDirect();
 
+    // quantizer
     int8_t cv = map(cv1Value, 0, 4096, 0, 36);
     int8_t oct = cv / 7;
     int8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
     quantizeOut = ((oct * 12) + semi) * voltPerTone;
+
+    int length = sspc.getStepDulation();
+    euclidTrig.setDuration(length >> 1);
 
     // Serial.print(cv1Value);
     // Serial.print(", ");
@@ -314,18 +346,19 @@ void loop1()
         break;
     default:
         requiresUpdate |= set[0].items[menuIndex - 8].add(encValue);
-        if (menuIndex == 8 && requiresUpdate)
-            sspc.setClockMode(extSync ? StepSeqPlayControl::CLOCK::EXT : StepSeqPlayControl::CLOCK::INT);
+        sspc.setClockMode(extSync ? StepSeqPlayControl::CLOCK::EXT : StepSeqPlayControl::CLOCK::INT);
         sspc.setOctUnder(octUnder);
         sspc.setOctUpper(octUpper);
         sspc.setGateMin(gateMin);
         sspc.setGateMax(gateMax);
         sspc.setGateInitial(gateInitial);
-        if (menuIndex == 14 && requiresUpdate)
-            sspc.setBPM(bpm, 48);
+        sspc.setBPM(bpm, 48);
         sspc.setScale(scale);
         sspc.setPPQ(ppq);
 
+        euclidOnsets = constrain(euclidOnsets, 0, euclidStepSize);
+        euclidStepSize = constrain(euclidStepSize, euclidOnsets, euclid.EUCLID_MAX_STEPS);
+        euclid.generate(euclidOnsets, euclidStepSize);
         break;
     }
 

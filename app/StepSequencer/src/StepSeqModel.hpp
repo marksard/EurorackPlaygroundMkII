@@ -221,6 +221,7 @@ public:
     enum Gate
     {
         _, // None
+        T, // Trigger
         S, // Short
         H, // Half
         L, // Long
@@ -228,7 +229,7 @@ public:
         Max,
     };
 
-    const uint8_t GateDulation[Gate::Max] = {0, 25, 50, 75, 100};
+    const uint8_t GateDulation[Gate::Max] = {0, 8, 25, 50, 75, 100};
 
     enum SeqMove
     {

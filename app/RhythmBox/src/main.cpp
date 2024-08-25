@@ -56,11 +56,11 @@ static SmoothAnalogRead cv2;
 
 // setting values
 float pitches[SEQUENCER_TOTAL] = {1.0,1.0,1.0,1.0,1.0,1.0};
-float decays[SEQUENCER_TOTAL] = {1.0,1.0,1.0,1.0,1.0,1.0};
+float decays[SEQUENCER_TOTAL] = {1.0,0.01,1.0,1.0,1.0,1.0};
 float volumes[SEQUENCER_TOTAL] = {1.0,1.0,1.0,1.0,1.0,1.0};
-
+float triggers[SEQUENCER_TOTAL] = {0, 0, 0, 0, 0, 0};
 // 画面周り
-#define MENU_MAX (18+6)
+#define MENU_MAX (24+6)
 static int16_t menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
@@ -69,12 +69,20 @@ PollingTimeEvent updateOLED;
 typedef struct
 {
     char title[16];
-    SettingItemF items[18];
+    SettingItemF items[24];
 } SettingMenu;
 
+const char selTrigger[][5] = {"INT", "VOCT", "CV1", "CV2"};
 SettingMenu set = {
     "SETTINGS",
     {
+        SettingItemF(0.0, 3.0, 1.0, &triggers[0], "RC Trig: %s", selTrigger, 4),
+        SettingItemF(0.0, 3.0, 1.0, &triggers[1], "HH Trig: %s", selTrigger, 4),
+        SettingItemF(0.0, 3.0, 1.0, &triggers[2], "LT Trig: %s", selTrigger, 4),
+        SettingItemF(0.0, 3.0, 1.0, &triggers[3], "RM Trig: %s", selTrigger, 4),
+        SettingItemF(0.0, 3.0, 1.0, &triggers[4], "SD Trig: %s", selTrigger, 4),
+        SettingItemF(0.0, 3.0, 1.0, &triggers[5], "BD Trig: %s", selTrigger, 4),
+
         SettingItemF(0.1, 2.0, 0.01, &pitches[0], "RC Pitch: %4.2f", NULL, 0),
         SettingItemF(0.01, 1.0, 0.01, &decays[0], "RC Decay: %4.2f", NULL, 0),
         SettingItemF(0.1, 1.0, 0.05, &volumes[0], "RC Volume: %4.2f", NULL, 0),
@@ -195,8 +203,8 @@ void setup()
     seq.setPatternName(4, "SD");
     seq.setPatternName(5, "BD");
     seq.setPattern(0, 1);
-    seq.setPattern(1, 16);
-    seq.setPattern(2, 29);
+    seq.setPattern(1, 11);
+    seq.setPattern(2, 28);
     seq.setPattern(3, 27);
     seq.setPattern(4, 25);
     seq.setPattern(5, 32);
@@ -213,19 +221,37 @@ void loop()
     uint16_t voct = vOct.analogReadDirect();
     int16_t cv1Value = cv1.analogReadDirect();
     uint16_t cv2Value = cv2.analogReadDirect();
+    int8_t triggerVOct = voct > 2048;
+    int8_t triggerCV1 = cv1Value > 2048;
+    int8_t triggerCV2 = cv2Value > 2048;
 
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
         pKit[i]->setSpeed(pitches[i]);
         pKit[i]->updateDecay(decays[i]);
         pKit[i]->setVolume(volumes[i]);
+        if (triggers[i] == 1)
+        {
+            pKit[i]->play(triggerVOct);
+            continue;
+        }
+        if (triggers[i] == 2)
+        {
+            pKit[i]->play(triggerCV1);
+            continue;
+        }
+        if (triggers[i] == 3)
+        {
+            pKit[i]->play(triggerCV2);
+            continue;
+        }
         int state = clockGate;
         int beat = seq.getBeat(i, clockCount);
         if (i == 4 && isSDFill)
         {
-            beat = 1;
+            beat = 0xF;
         }
-        beat = beat <= 1 ? beat : ((beat >> (clockCount >> 4)) & 1);
+        beat = (beat >> (clockCount >> 4)) & 1;
         state = state & beat;
         pKit[i]->play(state);
     }
@@ -259,7 +285,7 @@ void loop()
     // Serial.println();
     // }
 
-    sleep_us(200);
+    sleep_us(100);
     // sleep_ms(1);
 }
 

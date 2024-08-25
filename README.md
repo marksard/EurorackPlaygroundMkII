@@ -47,5 +47,8 @@ For application control
 ![img](_data/mkII_sch_03.png)  
 ![img](_data/mkII_sch_04.png)  
 
+### Note
+The common bias circuitry affects channel separation. I knew this and made it common, but if you are going to copy the circuit, it is better to modify it.  
+
 ## Demonstration
 [![img](https://github.com/user-attachments/assets/0b5ccc6b-40a2-4344-9bb2-f58af75253c2)](https://youtu.be/szY7E-fJ0OA)

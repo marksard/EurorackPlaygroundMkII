@@ -51,4 +51,6 @@ For application control
 The common bias circuitry affects channel separation. I knew this and made it common, but if you are going to copy the circuit, it is better to modify it.  
 
 ## Demonstration
-[![img](https://github.com/user-attachments/assets/0b5ccc6b-40a2-4344-9bb2-f58af75253c2)](https://youtu.be/szY7E-fJ0OA)
+[![img](https://github.com/user-attachments/assets/0b5ccc6b-40a2-4344-9bb2-f58af75253c2)](https://youtu.be/szY7E-fJ0OA)  
+
+[![img](https://github.com/user-attachments/assets/1eeb8981-f021-4f7d-a006-8a0cc3b4000d)](https://youtu.be/rw5O4wigSXM?si=Y_idfcUrhKUAo_wJ)  

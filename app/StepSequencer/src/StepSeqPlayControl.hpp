@@ -33,9 +33,9 @@ public:
         , _settingPos(DEF_MAX_STEP_M1, 0, DEF_MAX_STEP_M1)
         , _octUnder(-1, 4, -1, 4)
         , _octUpper(-1, 4, -1, 4)
-        , _gateMin(0, 5, 0, 5)
-        , _gateMax(0, 5, 0, 5)
-        , _gateInitial(0, 5, 0, 5)
+        , _gateMin(StepSeqModel::Gate::_, StepSeqModel::Gate::Max, StepSeqModel::Gate::_, StepSeqModel::Gate::Max)
+        , _gateMax(StepSeqModel::Gate::_, StepSeqModel::Gate::Max, StepSeqModel::Gate::_, StepSeqModel::Gate::Max)
+        , _gateInitial(StepSeqModel::Gate::_, StepSeqModel::Gate::Max, StepSeqModel::Gate::_, StepSeqModel::Gate::Max)
         , _syncIn(GATE)
         , _syncOut(OUT1)
         , _accOut(OUT2)
@@ -51,9 +51,9 @@ public:
 
         _octUnder.set(-1);
         _octUpper.set(1);
-        _gateMin.set(1);
-        _gateMax.set(5);
-        _gateInitial.set(1);
+        _gateMin.set(StepSeqModel::Gate::S);
+        _gateMax.set(StepSeqModel::Gate::Max);
+        _gateInitial.set(StepSeqModel::Gate::S);
 
         _gateOut.setDuration(10);
         _accOut.setDuration(200);
@@ -306,16 +306,16 @@ public:
         {
             int length = getStepDulation();
             int duration = _ssm.getGateDulation();
-            Serial.print(duration);
-            Serial.print(",");
-            Serial.print(length);
-            Serial.print(",");
+            // Serial.print(duration);
+            // Serial.print(",");
+            // Serial.print(length);
+            // Serial.print(",");
             _syncOut.setDuration(length >> 2);
             _syncOut.update(1);
             length = map(duration, 0, 100, 0, length);
-            Serial.print(length);
-            Serial.print(",");
-            Serial.println();
+            // Serial.print(length);
+            // Serial.print(",");
+            // Serial.println();
             _gateOut.setDuration(length);
             _accOut.update(_ssm.getPlayAcc() != 0);
         }

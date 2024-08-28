@@ -21,14 +21,14 @@ public:
 
     void dispSteps(uint8_t keyStart, uint8_t keyEnd, uint8_t gateStart, uint8_t gateEnd, uint8_t *pOcts, uint8_t *pKeys, uint8_t *pGates, uint8_t *pAccs, int8_t gateLenAdder, int8_t octaveAddr)
     {
-        static char disp_item[6] = {'-', 'T', 'S', 'H', 'L', 'G'};
+        static char disp_item[StepSeqModel::Gate::Max] = {'-', 'T', 'S', 'H', 'L', 'G'};
         for (uint8_t i = 0; i < 16; ++i)
         {
             uint8_t x = pos2X(i);
             uint8_t y = pos2Y(i);
             uint8_t keyInv = i >= keyStart && i <= keyEnd ? 1 : 0;
             uint8_t gateInv = i >= gateStart && i <= gateEnd ? 1 : 0;
-            uint8_t gate = constrain(pGates[i] + gateLenAdder, 0, 4);
+            uint8_t gate = constrain(pGates[i] + gateLenAdder, 0, StepSeqModel::Gate::G);
             dispStepUnit(x, y,
                          keyInv,
                          gateInv,

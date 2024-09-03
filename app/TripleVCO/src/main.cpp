@@ -18,13 +18,15 @@
 #include "Oscillator.hpp"
 #include "EepromData.h"
 
-#define CPU_CLOCK 133000000.0
+// #define CPU_CLOCK 133000000.0
+#define CPU_CLOCK 150000000.0
 #define INTR_PWM_RESO 512
-#define PWM_RESO 2048         // 11bit
+#define PWM_RESO 4096         // 11bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 2) // 120kHzくらいにはなる
+// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 2) // 120kHzくらいにはなる
+#define SAMPLE_FREQ 44100
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -264,14 +266,14 @@ void setup()
 
 void loop()
 {
-    uint16_t potValue = pot.analogRead(true);
+    uint16_t potValue = pot.analogRead(true, true);
     int8_t encValue = enc.getDirection(true);
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
-    uint16_t voct = vOct.analogReadDirect();
-    int16_t cv1Value = cv1.analogReadDirect();
-    uint16_t cv2Value = cv2.analogReadDirect();
+    uint16_t voct = vOct.analogReadDirectFast();
+    int16_t cv1Value = cv1.analogReadDirectFast();
+    uint16_t cv2Value = cv2.analogReadDirectFast();
 
     static float coarseA = userConfig.oscACoarse;
     static float coarseB = userConfig.oscBCoarse;

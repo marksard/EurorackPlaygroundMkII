@@ -8,6 +8,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include <hardware/adc.h>
 
 class SmoothAnalogRead
 {
@@ -26,6 +27,12 @@ public:
         _value = 0;
         _valueOld = 65535;
         pinMode(pin, INPUT);
+        adc_init();
+    }
+
+    uint16_t analogReadDirectFast()
+    {
+        return readPinFast();
     }
 
     uint16_t analogReadDirect()
@@ -42,14 +49,14 @@ public:
         return _value;
     }
 
-    uint16_t analogRead(bool smooth = true)
+    uint16_t analogRead(bool smooth = true, bool fast = true)
     {
         _valueOld = _value;
         // アナログ入力。平均＋ローパスフィルタ仕様
         int aval = 0;
         for (byte i = 0; i < 16; ++i)
         {
-            aval += readPin();
+            aval += fast ? readPinFast() : readPin();
         }
         // 実測による調整
         // 10bit
@@ -79,6 +86,15 @@ protected:
     byte _pin;
     uint16_t _value;
     uint16_t _valueOld;
+
+    /// @brief ピン値読込
+    /// @return
+    /// @note 必要最低限の処理のため、これを利用する場合すべてのADCは同一スレッドで読むこと
+    virtual uint16_t readPinFast()
+    {
+        adc_select_input(_pin - A0);
+        return adc_read();
+    }
 
     /// @brief ピン値読込
     /// @return

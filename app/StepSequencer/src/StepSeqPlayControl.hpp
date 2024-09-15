@@ -106,7 +106,7 @@ public:
         {
             if (_pTrigger != NULL)
             {
-                _seqReadyCountMax = 48 / 4;
+                _seqReadyCountMax = _pTrigger->getBPMReso() / 4;
                 if (_pTrigger->isStart())
                 {
                     _polling.start();
@@ -340,6 +340,16 @@ public:
         }
     }
 
+    void setSwingIndex(int8_t value) { swingIndex = constrain(value, 0, 4); }
+    int8_t getSwingIndex() { return swingIndex; }
+    int8_t beat16Count = 0;
+    int8_t swingIndex = 0;
+    int8_t swingTimeSets[4][4] = {
+        {  0,  0,  0,  0 },
+        {  1, -1,  1, -1 },
+        {  2, -2,  2, -2 },
+        {  3, -3,  3, -3 }
+    };
     int8_t updateProcedure()
     {
         int8_t result = 0;
@@ -350,13 +360,18 @@ public:
             return result;
         }
 
-        if (_seqReadyCount >= _seqReadyCountMax)
+        if (_seqReadyCount >= _seqReadyCountMax + swingTimeSets[swingIndex][beat16Count])
         {
             _seqReadyCount = 0;
             _ssm.keyStep.nextPlayStep();
             _ssm.gateStep.nextPlayStep();
-            result = 1;
+            beat16Count = (beat16Count + 1) & 3;
+            // Serial.print(_ssm.keyStep.pos.get());
+            // Serial.print(",note: ");
+            // Serial.print(_ssm.getPlayNote());
+            // Serial.println();
         }
+
 
         if (_seqReadyCount == 0)
         {
@@ -374,9 +389,13 @@ public:
                 }
             }
 
+            // Serial.print("--> play");
+            // Serial.print(_ssm.getPlayNote());
+            // Serial.println();
             uint16_t voct = _ssm.getPlayNote() * voltPerTone;
             setVOct(voct);
             updateGateOut(true);
+            result = 1;
         }
         else
         {

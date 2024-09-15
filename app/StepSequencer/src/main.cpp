@@ -58,9 +58,10 @@ static TriggerOut euclidTrig;
 static int16_t euclidOnsets;
 static int16_t euclidStepSize;
 static int16_t holdTrigger;
+static int16_t swing;
 
 // 画面周り
-#define MENU_MAX (8+12)
+#define MENU_MAX (8+13)
 static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
@@ -69,7 +70,7 @@ PollingTimeEvent updateOLED;
 typedef struct
 {
     char title[12];
-    SettingItem16 items[12];
+    SettingItem16 items[13];
 } SettingMenu;
 
 static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
@@ -85,6 +86,7 @@ SettingMenu set[] = {
         SettingItem16(0, StepSeqModel::Gate::L, 1, &gateMin, "GEN GATE MIN: %d", NULL, 0),
         SettingItem16(1, StepSeqModel::Gate::Max, 1, &gateMax, "GEN GATE MAX: %d", NULL, 0),
         SettingItem16(0, StepSeqModel::Gate::H, 1, &gateInitial, "GEN GATE INI: %d", NULL, 0),
+        SettingItem16(0, 3, 1, &swing, "SWING: %d", NULL, 0),
         SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
         SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
         SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0),
@@ -227,8 +229,9 @@ void setup()
     gateMin = sspc.getGateMin();
     gateMax = sspc.getGateMax();
     gateInitial = sspc.getGateInitial();
+    swing = sspc.getSwingIndex();
 
-    euclidOnsets = 5;
+    euclidOnsets = 4;
     euclidStepSize = 16;
     holdTrigger = 0;
 
@@ -301,6 +304,7 @@ void loop1()
         {
             sspc.stop();
             sspc.reset();
+            euclid.resetCurrent();
         }
         else
         {
@@ -352,6 +356,7 @@ void loop1()
         sspc.setGateMin(gateMin);
         sspc.setGateMax(gateMax);
         sspc.setGateInitial(gateInitial);
+        sspc.setSwingIndex(swing);
         sspc.setBPM(bpm, 48);
         sspc.setScale(scale);
         sspc.setPPQ(ppq);

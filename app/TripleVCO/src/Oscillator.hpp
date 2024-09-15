@@ -12,7 +12,7 @@
 #define WAVE_LENGTH 4096
 #define WAVE_LENGTH_BIT 12
 
-#ifdef bit11
+#ifdef bit_11
 #include "wavetable/sine_11bit_4096.h"
 #define WAVE_INDEX_DIV_BIT 1 // WAVE_LENGTH_BIT - WAVE_HEIGHT
 #define WAVE_HEIGHT 2048
@@ -144,7 +144,7 @@ public:
                 value = applyEzFolding(value);
             break;
         case Wave::SINE:
-            value = sine_12bit[index];
+            value = sine_1xbit[index];
             if (_isFolding)
                 value = applyEzFolding(value);
             break;
@@ -152,7 +152,7 @@ public:
             value = getRandom16(WAVE_HEIGHT);
             break;
         case Wave::SINE_RAMP:
-            value = ((indexHeight + sine_12bit[indexOffset]) >> 1) % WAVE_HEIGHT;
+            value = ((indexHeight + sine_1xbit[indexOffset]) >> 1) % WAVE_HEIGHT;
             break;
         case Wave::PH_RAMP:
             value = ((indexHeight * indexPhase) >> 11) % WAVE_HEIGHT;

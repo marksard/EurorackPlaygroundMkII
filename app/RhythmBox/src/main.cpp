@@ -56,8 +56,8 @@ static SmoothAnalogRead cv2;
 
 // setting values
 float pitches[SEQUENCER_TOTAL] = {1.0,1.0,1.0,1.0,1.0,1.0};
-float decays[SEQUENCER_TOTAL] = {1.0,0.01,1.0,1.0,1.0,1.0};
-float volumes[SEQUENCER_TOTAL] = {1.0,1.0,1.0,1.0,1.0,1.0};
+float decays[SEQUENCER_TOTAL] = {1.0,0.5,1.0,1.0,1.0,1.0};
+float volumes[SEQUENCER_TOTAL] = {0.7,1.0,1.0,1.0,1.0,1.0};
 float triggers[SEQUENCER_TOTAL] = {0, 0, 0, 0, 0, 0};
 // 画面周り
 #define MENU_MAX (24+6)
@@ -202,10 +202,10 @@ void setup()
     seq.setPatternName(3, "RM");
     seq.setPatternName(4, "SD");
     seq.setPatternName(5, "BD");
-    seq.setPattern(0, 1);
-    seq.setPattern(1, 11);
-    seq.setPattern(2, 28);
-    seq.setPattern(3, 27);
+    seq.setPattern(0, 3);
+    seq.setPattern(1, 16);
+    seq.setPattern(2, 19);
+    seq.setPattern(3, 26);
     seq.setPattern(4, 25);
     seq.setPattern(5, 32);
 
@@ -216,11 +216,11 @@ void loop()
 {
     bool withoutAcc = encMode && menuIndex >= SEQUENCER_TOTAL ? false : true;
     
-    pot.analogReadDropLow4bit();
+    pot.analogReadDirectFast();
     enc.getDirection(withoutAcc);
-    uint16_t voct = vOct.analogReadDirect();
-    int16_t cv1Value = cv1.analogReadDirect();
-    uint16_t cv2Value = cv2.analogReadDirect();
+    uint16_t voct = vOct.analogReadDirectFast();
+    int16_t cv1Value = cv1.analogReadDirectFast();
+    uint16_t cv2Value = cv2.analogReadDirectFast();
     int8_t triggerVOct = voct > 2048;
     int8_t triggerCV1 = cv1Value > 2048;
     int8_t triggerCV2 = cv2Value > 2048;

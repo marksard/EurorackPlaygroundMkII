@@ -32,12 +32,14 @@ public:
 
     uint16_t analogReadDirectFast()
     {
-        return readPinFast();
+        _value = readPinFast();
+        return _value;
     }
 
     uint16_t analogReadDirect()
     {
-        return readPin();
+        _value = readPin();
+        return _value;
     }
 
     uint16_t analogReadDropLow4bit()

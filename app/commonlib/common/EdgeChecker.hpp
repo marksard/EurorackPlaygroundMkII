@@ -35,10 +35,10 @@ public:
     inline bool isEdgeHigh()
     {
         uint8_t value = readPin();
-        uint8_t edge = 0;
-        if (value == 1 && _lastValue == 0)
+        bool edge = 0;
+        if (value != 0 && _lastValue == 0)
         {
-            edge = 1;
+            edge = true;
             _duration = micros() - _lastMicros;
             _lastMicros = micros();
         }
@@ -51,7 +51,7 @@ public:
     inline bool isEdgeLow()
     {
         uint8_t value = readPin();
-        uint8_t edge = value == 0 && _lastValue == 1 ? 1 : 0;
+        bool edge = value == 0 && _lastValue != 0 ? true : false;
         _lastValue = value;
         return edge;
     }

@@ -13,6 +13,7 @@
 #include "../../commonlib/common/RotaryEncoder.hpp"
 #include "../../commonlib/common/EdgeChecker.hpp"
 #include "../../commonlib/common/PollingTimeEvent.hpp"
+#include "../../commonlib/common/TriggerOut.hpp"
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
 #include "../../commonlib/common/pwm_wrapper.h"
@@ -44,17 +45,26 @@ static int16_t minFreq = 0;
 static int16_t maxFreq = 6;
 static int16_t curve = 3;
 static int16_t level = 100;
-static int16_t triggerMode = 0;
+static int16_t clockMode = 0;
+static uint8_t selReso[] = { 4, 8, 12, 16 };
+static int16_t minMultiply = 0;
+static int16_t maxMultiply = 3;
+static int16_t clockPPQ = 4;
 
-static Oscillator osc;
+static Oscillator lfo;
 static EdgeChecker clockEdge;
 static PollingTimeEvent pollingEvent;
+static SmoothRandomCV src(ADC_RESO);
+static TriggerOut rndMultiplyOut;
+static RandomFast rnd;
 
 static bool edgeHigh = false;
+static bool edgeGate = false;
+static uint16_t edgeBPM = 0;
 //////////////////////////////////////////
 
 // 画面周り
-#define MENU_MAX (6)
+#define MENU_MAX (8)
 static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
@@ -68,15 +78,19 @@ typedef struct
 
 const char waveName[][5] = {"SQU", "DSAW", "USAW", "TRI", "SIN"};
 const char triggerName[][5] = {"INT", "EXT"};
+const char selMultiplyName[][5] = { "x1", "x2", "x3", "x4" };
+
 SettingMenu set[] = {
-    {"SMOOTH RND",
+    {"RAND MODULE",
      {
-         SettingItem16(0, (int16_t)Oscillator::Wave::MAX, 1, &wave, "Wave: %s", waveName, (int16_t)Oscillator::Wave::MAX + 1),
-         SettingItem16(0, 1, 1, &triggerMode, "TriggerMode: %s", triggerName, 2),
-         SettingItem16(0, 133, 1, &minFreq, "MinFreq: %d", NULL, 0),
-         SettingItem16(0, 133, 1, &maxFreq, "MaxFreq: %d", NULL, 0),
-         SettingItem16(1, 64, 1, &curve, "Curve: %d", NULL, 0),
-         SettingItem16(0, 100, 1, &level, "Level: %d", NULL, 0)
+         SettingItem16(0, 1, 1, &clockMode, "CLK In Mode: %s", triggerName, 2),
+         SettingItem16(0, 100, 1, &level, "CV Level: %d", NULL, 0),
+         SettingItem16(1, 64, 1, &curve, "CV Curve: %d", NULL, 0),
+         SettingItem16(0, (int16_t)Oscillator::Wave::MAX, 1, &wave, "LFO Wave: %s", waveName, (int16_t)Oscillator::Wave::MAX + 1),
+         SettingItem16(0, 133, 1, &minFreq, "LFO MinFreq: %d", NULL, 0),
+         SettingItem16(0, 133, 1, &maxFreq, "LFO MaxFreq: %d", NULL, 0),
+         SettingItem16(0, 3, 1, &minMultiply, "MULTI Min: %s", selMultiplyName, 4),
+         SettingItem16(0, 3, 1, &maxMultiply, "MULTI Max: %s", selMultiplyName, 4),
      }}};
 
 void initOLED()
@@ -107,7 +121,7 @@ void interruptPWM()
     pwm_clear_irq(interruptSliceNum);
     // gpio_put(LED1, HIGH);
 
-    uint16_t valueA = osc.getWaveValue();
+    uint16_t valueA = lfo.getWaveValue();
     pwm_set_gpio_level(OUT1, valueA);
 
     // gpio_put(LED1, LOW);
@@ -135,6 +149,7 @@ void setup()
     clockEdge.init(GATE);
     pollingEvent.setBPM(133, 4);
     pollingEvent.start();
+    rndMultiplyOut.init(OUT6);
 
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
@@ -144,14 +159,14 @@ void setup()
     initPWM(OUT3, PWM_RESO);
     initPWM(OUT4, PWM_RESO);
     initPWM(OUT5, PWM_RESO);
-    initPWM(OUT6, PWM_RESO);
+    // initPWM(OUT6, PWM_RESO);
 
-    osc.init(SAMPLE_FREQ);
-    osc.setWave(Oscillator::Wave::SQU);
-    osc.setFreqName(100);
-    osc.setFrequency(100);
-    osc.setPhaseShift(0);
-    osc.setFolding(0);
+    lfo.init(SAMPLE_FREQ);
+    lfo.setWave(Oscillator::Wave::SQU);
+    lfo.setFreqName(100);
+    lfo.setFrequency(100);
+    lfo.setPhaseShift(0);
+    lfo.setFolding(0);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 
@@ -207,34 +222,50 @@ void loop()
     lastMenuIndex = menuIndex;
 
     requiresUpdate |= set[0].items[menuIndex].add(encValue);
-    osc.setWave((Oscillator::Wave)wave);
+    lfo.setWave((Oscillator::Wave)wave);
 
-    static SmoothRandomCV src(ADC_RESO);
     src.setCurve(curve);
     src.setMaxFreq(maxFreq);
     src.setMaxLevel(level);
+
     edgeHigh = clockEdge.isEdgeHigh();
-    src.update(edgeHigh, triggerMode);
+    edgeGate = clockEdge.getValue();
+    edgeBPM = clockEdge.getBPM();
+
+    src.update(edgeHigh, clockMode);
+
     float lastFreq = src.getFreq();
     float lastLevel = src.getLevel();
 
-    osc.setFrequency(max(lastFreq, minFreq == 0 ? 0.05 : minFreq));
+    lfo.setFrequency(max(lastFreq, minFreq == 0 ? 0.05 : minFreq));
     pwm_set_gpio_level(OUT2, lastLevel);
-    gpio_put(LED1, clockEdge.getValue() ? HIGH : LOW);
+    gpio_put(LED1, edgeGate ? HIGH : LOW);
 
-    pollingEvent.setBPM(clockEdge.getBPM());
-    gpio_put(OUT3, pollingEvent.ready() ? HIGH : LOW);
-    static uint8_t dispCount = 0;
-    dispCount++;
-    if (dispCount == 0)
+    if (edgeHigh)
     {
-        Serial.print(clockEdge.getBPM());
-        Serial.print(", ");
-        Serial.print(pollingEvent.getBPM());
-        // Serial.print(", ");
-        // Serial.print(cv2Value);
-        Serial.println();
+        int8_t selResoIndex = rnd.getRandom16(minMultiply, maxMultiply + 1);
+        pollingEvent.setBPM(edgeBPM, selReso[selResoIndex]);
+        pollingEvent.stop();
+        pollingEvent.start();
+        rndMultiplyOut.setDuration(pollingEvent.getMills() >> (4 - selResoIndex));
+        rndMultiplyOut.update(edgeHigh);
     }
+    else
+    {
+        rndMultiplyOut.update(pollingEvent.ready());
+    }
+
+    // static uint8_t dispCount = 0;
+    // dispCount++;
+    // if (dispCount == 0)
+    // {
+    //     Serial.print(clockEdge.getBPM());
+    //     Serial.print(", ");
+    //     Serial.print(pollingEvent.getBPM());
+    //     Serial.print(", ");
+    //     Serial.print(cv2Value);
+    //     Serial.println();
+    // }
 
     sleep_us(50); // 20kHz
     // sleep_ms(1);

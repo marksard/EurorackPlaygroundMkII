@@ -40,16 +40,17 @@ static SmoothAnalogRead cv2;
 
 //////////////////////////////////////////
 // entries
-static int16_t wave = 4;
-static int16_t minFreq = 0;
-static int16_t maxFreq = 6;
-static int16_t curve = 3;
-static int16_t level = 100;
-static int16_t clockMode = 0;
+static float clockMode = 0;
+static float level = 100;
+static float curve = 3;
+static float wave = 4;
+static float minFreq = 0;
+static float maxFreq = 3;
+static float minMultiply = 0;
+static float maxMultiply = 3;
+
+// static int16_t clockPPQ = 4;
 static uint8_t selReso[] = { 4, 8, 12, 16 };
-static int16_t minMultiply = 0;
-static int16_t maxMultiply = 3;
-static int16_t clockPPQ = 4;
 
 static Oscillator lfo;
 static EdgeChecker clockEdge;
@@ -57,10 +58,6 @@ static PollingTimeEvent pollingEvent;
 static SmoothRandomCV src(ADC_RESO);
 static TriggerOut rndMultiplyOut;
 static RandomFast rnd;
-
-static bool edgeHigh = false;
-static bool edgeGate = false;
-static uint16_t edgeBPM = 0;
 //////////////////////////////////////////
 
 // 画面周り
@@ -73,7 +70,7 @@ PollingTimeEvent updateOLED;
 typedef struct
 {
     char title[12];
-    SettingItem16 items[MENU_MAX];
+    SettingItemF items[MENU_MAX];
 } SettingMenu;
 
 const char waveName[][5] = {"SQU", "DSAW", "USAW", "TRI", "SIN"};
@@ -81,16 +78,16 @@ const char triggerName[][5] = {"INT", "EXT"};
 const char selMultiplyName[][5] = { "x1", "x2", "x3", "x4" };
 
 SettingMenu set[] = {
-    {"RAND MODULE",
+    {"RND MODULE",
      {
-         SettingItem16(0, 1, 1, &clockMode, "CLK In Mode: %s", triggerName, 2),
-         SettingItem16(0, 100, 1, &level, "CV Level: %d", NULL, 0),
-         SettingItem16(1, 64, 1, &curve, "CV Curve: %d", NULL, 0),
-         SettingItem16(0, (int16_t)Oscillator::Wave::MAX, 1, &wave, "LFO Wave: %s", waveName, (int16_t)Oscillator::Wave::MAX + 1),
-         SettingItem16(0, 133, 1, &minFreq, "LFO MinFreq: %d", NULL, 0),
-         SettingItem16(0, 133, 1, &maxFreq, "LFO MaxFreq: %d", NULL, 0),
-         SettingItem16(0, 3, 1, &minMultiply, "MULTI Min: %s", selMultiplyName, 4),
-         SettingItem16(0, 3, 1, &maxMultiply, "MULTI Max: %s", selMultiplyName, 4),
+         SettingItemF(0.0, 1.0, 1.0, &clockMode, "RND CLK Mode: %s", triggerName, 2),
+         SettingItemF(0.0, 100.0, 1.0, &level, "RND CV Level: %3.0f", NULL, 0),
+         SettingItemF(1.0, 50.0, 1.0, &curve, "RND CV Curve: %3.0f", NULL, 0),
+         SettingItemF(0.0, (float)Oscillator::Wave::MAX, 1.0, &wave, "RND LFO Wav: %s", waveName, (int16_t)Oscillator::Wave::MAX + 1),
+         SettingItemF(0.0, 20.0, 0.1, &minFreq, "RND LFO MinF:%3.1f", NULL, 0),
+         SettingItemF(0.0, 20.0, 0.1, &maxFreq, "RND LFO MaxF:%3.1f", NULL, 0),
+         SettingItemF(0.0, 3.0, 1.0, &minMultiply, "CLK MUL Min: %s", selMultiplyName, 4),
+         SettingItemF(0.0, 3.0, 1.0, &maxMultiply, "CLK MUL Max: %s", selMultiplyName, 4),
      }}};
 
 void initOLED()
@@ -228,9 +225,9 @@ void loop()
     src.setMaxFreq(maxFreq);
     src.setMaxLevel(level);
 
-    edgeHigh = clockEdge.isEdgeHigh();
-    edgeGate = clockEdge.getValue();
-    edgeBPM = clockEdge.getBPM();
+    bool edgeHigh = clockEdge.isEdgeHigh();
+    bool edgeGate = clockEdge.getValue();
+    uint16_t edgeBPM = clockEdge.getBPM();
 
     src.update(edgeHigh, clockMode);
 

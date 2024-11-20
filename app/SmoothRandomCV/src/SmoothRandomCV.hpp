@@ -35,10 +35,7 @@ public:
         if (_maxFreq == value)
             return;
         _maxFreq = value;
-        _maxFreqRatio = (float)1.0 / ((float)_adcReso / (float)_maxFreq);
-        // Serial.print(((float)_adcReso / (float)_maxFreq));
-        // Serial.print(",");
-        // Serial.println(_maxFreqRatio);
+        _maxFreqRatio = _maxFreq / 100.0;
     }
     void setCurve(float value) { _curve = value; }
 
@@ -55,11 +52,11 @@ public:
         bool on = isTrigger ? trigger : ready();
         if (on)
         {
-            _holdLevel = _rnd.getRandom16(0, _adcReso2 * _maxLevel);
-            _holdFreq = _holdLevel * _maxFreqRatio;
-            // Serial.print(_holdLevel);
-            // Serial.print(",");
-            // Serial.println(_holdFreq);
+            int16_t rndLevel = _rnd.getRandom16(0, _maxLevel);
+            int16_t rndFreq = _rnd.getRandom16(0, 100);
+            // levelとfreqをランダムに変化させる
+            _holdLevel = _adcReso2 * rndLevel;
+            _holdFreq = _maxFreqRatio * rndFreq;
         }
         float curveRight = _curve * 0.0001;
         float curveLeft = 1.0 - curveRight;

@@ -70,8 +70,10 @@ public:
             return false;
         _bpm = bpm;
         _bpmReso = bpmReso;
-        triggerTime = (int)((60.0 / (bpm * bpmReso)) * 1000000.0);
+        triggerTime = (long)((60.0 / (bpm * bpmReso)) * 1000000.0);
         // Serial.print(bpm);
+        // Serial.print(",");
+        // Serial.print(bpmReso);
         // Serial.print(",");
         // Serial.print(triggerTime);
         // Serial.print(",");
@@ -87,6 +89,6 @@ private:
     byte _start;
     byte _bpm;
     byte _bpmReso;
-    int triggerTime;
+    long triggerTime;
     long _lastMicros;
 };

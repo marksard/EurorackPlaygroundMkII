@@ -29,11 +29,11 @@ const static uint8_t beats[BEATS_TOTAL][STEP_MAX]
     { 0, 0, 0, 0,  0, 0, 0,15,  0,15, 0, 0,  0, 0, 0, 0},
 
     { 0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0}, // 10
-    {15, 0,15,15, 15, 0,15,15, 15,10,15,15, 15, 8,15,15},
+    {15,15,15,15, 15,15, 8,15, 15,15,15,15, 15,15, 8,15},
     {15, 0,15, 0, 15, 0,15,10, 15,10,15, 0, 15, 0,15, 0},
     {15, 0,15, 0, 15, 0,15, 0, 15, 0,15, 8, 15, 8,15, 8},
-    { 0, 0,15, 0,  0, 0,15, 0,  0,10,15, 0,  0, 8,15, 0},
-    { 0, 0,15, 0,  0,15, 0, 8,  0, 0,15, 0,  0, 8,15, 0},
+    { 0, 0,15, 0,  0, 0,15, 0,  0,10,15, 0,  0, 0,15, 8},
+    { 0, 0,15,15,  0, 0,15,15,  0,15, 8,15,  0, 0,15,15},
     { 0, 0,15, 0,  0, 0,15, 0,  0, 0,15, 0,  0, 0,15,10},
     {15, 0,15,10, 15, 0,10,15,  0,15, 0, 0, 15, 8, 0,15},
     { 0,15, 0,15,  0,15, 0,15,  0,15, 0,15,  0,15,10,15},
@@ -98,10 +98,11 @@ public:
         for (int8_t i = 0; i < SEQUENCER_TOTAL + 1; ++i)
         {
             pU8g2->drawStr(0, origin_y + (seqYStep * i), patternSetting[i].disp_name);
-            pU8g2->drawHLine(origin_x, origin_y + (seqYStep * i), 127);
+            // pU8g2->drawHLine(origin_x, origin_y + (seqYStep * i), 127);
         }
 
-        for (int8_t i = 0; i < STEP_MAX + 1; ++i)
+        // for (int8_t i = 0; i < STEP_MAX + 1; ++i)
+        for (int8_t i = 4; i < STEP_MAX; i+=4)
         {
             pU8g2->drawVLine(origin_x + (seqXStep * i), origin_y, 63);
         }
@@ -111,15 +112,21 @@ public:
             for (int8_t y = 0; y < SEQUENCER_TOTAL; ++y)
             {
                 uint8_t beat = beats[patternSetting[y].currentPattern][x];
-                if((beat >> 1) & 1) beat = 2;
-                else if((beat >> 2) & 1) beat = 3;
-                else if((beat >> 3) & 1) beat = 4;
-                int8_t size = 6 - beat;
                 int8_t offset = 1;
-                if (size < 6)
+                uint8_t odd = (beat & (1+4));
+                uint8_t even = (beat & (2+8));
+                if (odd > 0)
+                {
                     pU8g2->drawBox((origin_x + offset) + (seqXStep * x), 
-                                (origin_y + offset) + (seqYStep * y), 
-                                size, size);
+                                (origin_y + offset) + (seqYStep * y) + (odd == 4 ? 3 : 0), 
+                                3, odd == 5 ? 6 : 3);
+                }
+                if (even > 0)
+                {
+                    pU8g2->drawBox((origin_x + offset) + (seqXStep * x) + 3, 
+                                (origin_y + offset) + (seqYStep * y) + (even == 8 ? 3 : 0), 
+                                3, even == 10 ? 6 : 3);
+                }
             }
         }
 

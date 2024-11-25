@@ -20,19 +20,27 @@
 #include "PatternSeq.hpp"
 #include "SingleShotWave.hpp"
 
-#include "wavetable/909_01/909_BD_Norm.h"
+// #include "wavetable/909_01/909_BD_Norm.h"
+#include "wavetable/808_01/808_BD_02.h"
 #include "wavetable/909_01/909_LT.h"
-#include "wavetable/909_01/909_OH.h"
+// #include "wavetable/909_01/909_OH.h"
+#include "wavetable/808_01/808_OHH_01.h"
 #include "wavetable/909_01/909_RC.h"
-#include "wavetable/909_01/909_RS.h"
-#include "wavetable/909_01/909_SD_Snap.h"
+// #include "wavetable/909_01/909_RS.h"
+#include "wavetable/808_01/808_Rim_01.h"
+// #include "wavetable/909_01/909_SD_Snap.h"
+#include "wavetable/808_01/808_SD_01.h"
 
 SingleShotWave RC(buf_909_RC, buf_size_909_RC);
-SingleShotWave OH(buf_909_OH, buf_size_909_OH);
+// SingleShotWave OH(buf_909_OH, buf_size_909_OH);
+SingleShotWave OH(buf_808_OHH_01, buf_size_808_OHH_01);
 SingleShotWave LT(buf_909_LT, buf_size_909_LT);
-SingleShotWave RS(buf_909_RS, buf_size_909_RS);
-SingleShotWave SD(buf_909_SD_Snap, buf_size_909_SD_Snap);
-SingleShotWave BD(buf_909_BD_Norm, buf_size_909_BD_Norm);
+// SingleShotWave RS(buf_909_RS, buf_size_909_RS);
+// SingleShotWave SD(buf_909_SD_Snap, buf_size_909_SD_Snap);
+// SingleShotWave BD(buf_909_BD_Norm, buf_size_909_BD_Norm);
+SingleShotWave RS(buf_808_Rim_01, buf_size_808_Rim_01);
+SingleShotWave SD(buf_808_SD_01, buf_size_808_SD_01);
+SingleShotWave BD(buf_808_BD_02, buf_size_808_BD_02);
 SingleShotWave<int16_t> *pKit[SEQUENCER_TOTAL];
 int pwmOuts[SEQUENCER_TOTAL] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 bool isSDFill = false;
@@ -57,7 +65,7 @@ static SmoothAnalogRead cv2;
 // setting values
 float pitches[SEQUENCER_TOTAL] = {1.0,1.0,1.0,1.0,1.0,1.0};
 float decays[SEQUENCER_TOTAL] = {1.0,0.5,1.0,1.0,1.0,1.0};
-float volumes[SEQUENCER_TOTAL] = {0.7,1.0,1.0,1.0,1.0,1.0};
+float volumes[SEQUENCER_TOTAL] = {0.7,1.0,1.0,0.8,1.0,1.0};
 float triggers[SEQUENCER_TOTAL] = {0, 0, 0, 0, 0, 0};
 // 画面周り
 #define MENU_MAX (24+6)

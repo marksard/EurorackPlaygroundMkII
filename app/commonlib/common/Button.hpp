@@ -25,7 +25,7 @@ public:
         _pin = pin;
         _pinState = 0;
         _holdStage = 0;
-        _holdTime = 500;
+        _holdTime = 500*1000;
 
         pinMode(pin, INPUT_PULLUP);
 
@@ -81,10 +81,10 @@ public:
             if (_holdStage == 0)
             {
                 _holdStage = 1;
-                _lastMillis = millis();
+                _lastMicros = micros();
             }
             // Hold confirm
-            else if (millis() >= _lastMillis + _holdTime)
+            else if (micros() >= _lastMicros + _holdTime)
             {
                 _holdStage = 2;
             }
@@ -95,15 +95,15 @@ public:
 
     void setHoldTime(int16_t mills)
     {
-        _holdTime = mills;
+        _holdTime = mills * 1000;
     }
 
 protected:
     uint8_t _pin;
     uint8_t _pinState;
     uint8_t _holdStage;
-    unsigned long _lastMillis;
-    int16_t _holdTime;
+    ulong _lastMicros;
+    ulong _holdTime;
 
     /// @brief ピン値読込
     /// @return

@@ -8,14 +8,14 @@
 #pragma once
 
 #define RE_DELTA_THRESHOLD_COUNT 5
-static const byte _thresholds[RE_DELTA_THRESHOLD_COUNT] = {10, 20, 40, 60, 80};
+static const uint16_t _thresholds[RE_DELTA_THRESHOLD_COUNT] = {1, 5, 10, 20, 40};
 static const byte _deltas[RE_DELTA_THRESHOLD_COUNT] = {12, 6, 3, 2, 1};
 
 class RotaryEncoder
 {
 public:
     RotaryEncoder() {}
-    RotaryEncoder(int pin1, int pin2)
+    RotaryEncoder(int pin1, int pin2, ulong thresholdRatio = 1000)
     {
         init(pin1, pin2);
     }
@@ -23,7 +23,7 @@ public:
     /// @brief ピン設定
     /// @param pin1
     /// @param pin2
-    void init(int pin1, int pin2, bool holdMode = false)
+    void init(int pin1, int pin2, bool holdMode = false, ulong thresholdRatio = 1000)
     {
         _pin1 = pin1;
         _pin2 = pin2;
@@ -34,6 +34,7 @@ public:
         _timePrev = millis();
         _timeCurrent = _timePrev;
         _holdMode = holdMode;
+        _thresholdRatio = thresholdRatio;
 
         getDirection(); // 空読みして値をいれておく
     }
@@ -52,13 +53,13 @@ public:
         {
         case 0xd:
             _timePrev = _timeCurrent;
-            _timeCurrent = millis();
+            _timeCurrent = micros();
             _index = 0;
             _value = withoutAcc ? 1 : getDelta();
             break;
         case 0x7:
             _timePrev = _timeCurrent;
-            _timeCurrent = millis();
+            _timeCurrent = micros();
             _index = 0;
             _value = withoutAcc ? -1 : getDelta() * -1;
             break;
@@ -80,7 +81,7 @@ public:
     {
         for (byte i = 0; i < RE_DELTA_THRESHOLD_COUNT; ++i)
         {
-            if (lastRotationTime() < _thresholds[i])
+            if (lastRotationTime() < (_thresholds[i] * _thresholdRatio))
             {
                 return _deltas[i];
             }
@@ -105,6 +106,7 @@ protected:
     ulong _timeCurrent;
     byte _value;
     bool _holdMode;
+    ulong _thresholdRatio;
 
     virtual void getPinValue(byte *pValue1, byte *pValue2)
     {

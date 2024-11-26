@@ -115,6 +115,7 @@ public:
                 int8_t offset = 1;
                 uint8_t odd = (beat & (1+4));
                 uint8_t even = (beat & (2+8));
+                // 1小節：左上、2小節：右上、3小節：左下、4小節：右下に四角で表示
                 if (odd > 0)
                 {
                     pU8g2->drawBox((origin_x + offset) + (seqXStep * x), 

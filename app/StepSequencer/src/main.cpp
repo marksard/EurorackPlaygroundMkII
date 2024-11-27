@@ -18,6 +18,7 @@
 #include "StepSeqModel.hpp"
 #include "StepSeqView.hpp"
 #include "StepSeqPlayControl.hpp"
+#include "Oscillator.hpp"
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
@@ -48,6 +49,9 @@ static int16_t gateInitial;
 static int16_t bpm;
 static int16_t scale;
 static int16_t ppq;
+static int16_t shSource = 0;
+static int16_t shIntOctMax = 3;
+static int16_t shIntSpeed = 20;
 
 // quantizer
 const int16_t halfReso = (ADC_RESO >> 1);
@@ -55,32 +59,38 @@ const int16_t halfReso = (ADC_RESO >> 1);
 static int16_t quantizeOut = 0;
 static Euclidean euclid;
 static TriggerOut euclidTrig;
-static int16_t euclidOnsets;
-static int16_t euclidStepSize;
-static int16_t holdTrigger;
-static int16_t swing;
+static Oscillator intLFO;
+static int16_t euclidOnsets = 4;
+static int16_t euclidStepSize = 16;
+static int16_t shTrigger = 1;
+static int16_t swing = 1;
 
 // 画面周り
-#define MENU_MAX (8+13)
+#define SETTINS_MENU_MAX 16
+#define MENU_MAX (8 + SETTINS_MENU_MAX)
 static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
-PollingTimeEvent updateOLED;
+static PollingTimeEvent updateOLED;
 
 typedef struct
 {
     char title[12];
-    SettingItem16 items[13];
+    SettingItem16 items[SETTINS_MENU_MAX];
 } SettingMenu;
 
 static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
 static const char onoff[][5] = {"OFF", "ON"};
-static const char holdTriggers[][5] = {"CLK", "EUC"};
+static const char shTriggers[][5] = {"CLK", "EUC"};
+static const char shSources[][5] = {"INT", "EXT"};
 SettingMenu set[] = {
     {"SETTINGS", {
-        SettingItem16(1, 16, 1, &euclidOnsets, "EUCRID ONSETS: %d", NULL, 0),
-        SettingItem16(1, 16, 1, &euclidStepSize, "EUCRID STEP: %d", NULL, 0),
-        SettingItem16(0, 1, 1, &holdTrigger, "HOLD TIGGER: %s", holdTriggers, 2),
+        SettingItem16(0, 16, 1, &euclidOnsets, "EUCLID ONSETS: %d", NULL, 0),
+        SettingItem16(1, 16, 1, &euclidStepSize, "EUCLID STEP: %d", NULL, 0),
+        SettingItem16(0, 1, 1, &shTrigger, "S&H TIGGER: %s", shTriggers, 2),
+        SettingItem16(0, 1, 1, &shSource, "S&H SOURCE: %s", shSources, 2),
+        SettingItem16(1, 5, 1, &shIntOctMax, "S&H INT OCT: %d", NULL, 0),
+        SettingItem16(1, 32, 1, &shIntSpeed, "S&H INT SPEED: %d", NULL, 0),
         SettingItem16(-1, 4, 1, &octUnder, "GEN OCT UNDER: %d", NULL, 0),
         SettingItem16(-1, 4, 1, &octUpper, "GEN OCT UPPER: %d", NULL, 0),
         SettingItem16(0, StepSeqModel::Gate::L, 1, &gateMin, "GEN GATE MIN: %d", NULL, 0),
@@ -175,8 +185,8 @@ void interruptPWM()
     {
         int8_t trig = euclid.getNext();
         euclidTrig.update(trig);
-        if ((holdTrigger == 0 && ready) ||
-            (holdTrigger == 1 && trig))
+        if ((shTrigger == 0 && ready) ||
+            (shTrigger == 1 && trig))
         {
             pwm_set_gpio_level(OUT6, quantizeOut);
         }
@@ -231,12 +241,11 @@ void setup()
     gateInitial = sspc.getGateInitial();
     swing = sspc.getSwingIndex();
 
-    euclidOnsets = 4;
-    euclidStepSize = 16;
-    holdTrigger = 0;
-
     euclidTrig.init(OUT4);
     euclid.generate(euclidOnsets, euclidStepSize);
+
+    intLFO.init(SAMPLE_FREQ);
+    intLFO.setWave(Oscillator::Wave::TRI);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }
@@ -249,8 +258,18 @@ void loop()
     int16_t cv1Value = cv1.analogReadDirect();
     uint16_t cv2Value = cv2.analogReadDirect();
 
+    intLFO.setFrequency(shIntSpeed);
+    uint16_t internalLFOValue = intLFO.getWaveValue();
+
     // quantizer
-    int8_t cv = map(cv1Value, 0, 4096, 0, 36);
+    int16_t cv = 0;
+    if (shSource)
+    {
+        cv = map(cv1Value, 0, 4096, 0, 36);
+    }
+    else {
+        cv = map(internalLFOValue, 0, 4096, 0, (7 * shIntOctMax) + 1);
+    }
     int8_t oct = cv / 7;
     int8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
     quantizeOut = ((oct * 12) + semi) * voltPerTone;
@@ -263,7 +282,7 @@ void loop()
     // Serial.print(cv2Value);
     // Serial.println();
 
-    sleep_ms(1);
+    sleep_us(100);
 }
 
 void setup1()
@@ -310,6 +329,11 @@ void loop1()
         {
             sspc.start();
         }
+    }
+
+    if (btn1 == 1)
+    {
+        sspc.reset();
     }
 
     switch (menuIndex)

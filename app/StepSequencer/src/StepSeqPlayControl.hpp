@@ -50,10 +50,10 @@ public:
         _requestResetAllSequence = false;
 
         _octUnder.set(-1);
-        _octUpper.set(1);
-        _gateMin.set(StepSeqModel::Gate::S);
+        _octUpper.set(2);
+        _gateMin.set(StepSeqModel::Gate::H);
         _gateMax.set(StepSeqModel::Gate::Max);
-        _gateInitial.set(StepSeqModel::Gate::S);
+        _gateInitial.set(StepSeqModel::Gate::H);
 
         _gateOut.setDuration(10);
         _accOut.setDuration(200);

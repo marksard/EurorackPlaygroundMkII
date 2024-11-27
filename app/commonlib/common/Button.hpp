@@ -109,6 +109,7 @@ protected:
     /// @return
     virtual uint8_t readPin()
     {
-        return digitalRead(_pin);
+        return gpio_get(_pin);
+        // return digitalRead(_pin);
     }
 };

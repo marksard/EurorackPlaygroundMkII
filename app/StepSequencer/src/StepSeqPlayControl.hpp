@@ -317,7 +317,6 @@ public:
             // Serial.print(",");
             // Serial.println();
             _gateOut.setDuration(length);
-            _accOut.update(_ssm.getPlayAcc() != 0);
         }
         else
         {
@@ -338,6 +337,8 @@ public:
         {
             _gateOut.update(updateDuration == true);
         }
+
+        _accOut.update(_ssm.getPlayAcc() != 0);
     }
 
     void setSwingIndex(int8_t value) { swingIndex = constrain(value, 0, 4); }

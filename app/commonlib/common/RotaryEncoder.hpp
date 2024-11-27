@@ -31,7 +31,7 @@ public:
         pinMode(pin1, INPUT_PULLUP);
         pinMode(pin2, INPUT_PULLUP);
 
-        _timePrev = millis();
+        _timePrev = micros();
         _timeCurrent = _timePrev;
         _holdMode = holdMode;
 

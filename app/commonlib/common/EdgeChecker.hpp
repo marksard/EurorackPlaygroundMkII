@@ -48,13 +48,13 @@ public:
 
     /// @brief 立下がりエッジ検出
     /// @return 
-    inline bool isEdgeLow()
-    {
-        uint8_t value = readPin();
-        bool edge = value == 0 && _lastValue != 0 ? true : false;
-        _lastValue = value;
-        return edge;
-    }
+    // inline bool isEdgeLow()
+    // {
+    //     uint8_t value = readPin();
+    //     bool edge = value == 0 && _lastValue != 0 ? true : false;
+    //     _lastValue = value;
+    //     return edge;
+    // }
 
     inline uint16_t getBPM(byte bpmReso = 4)
     {
@@ -77,6 +77,11 @@ public:
     {
         _pin = pin;
         pinMode(pin, INPUT);
+    }
+
+    inline bool isAlive()
+    {
+        return micros() < (_lastMicros + 1000000);
     }
 
 protected:

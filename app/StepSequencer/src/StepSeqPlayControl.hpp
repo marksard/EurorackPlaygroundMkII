@@ -106,6 +106,7 @@ public:
         {
             if (_pTrigger != NULL)
             {
+                _pTrigger->setBPM(_pTrigger->getBPM(), _pTrigger->getBPMReso());
                 _seqReadyCountMax = _pTrigger->getBPMReso() / 4;
                 if (_pTrigger->isStart())
                 {
@@ -114,7 +115,8 @@ public:
             }
             _pTrigger = &_polling;
         }
-        else {
+        else if (clock == CLOCK::EXT)
+        {
             if (_pTrigger != NULL)
             {
                 _seqReadyCountMax = 4 / 4;
@@ -146,6 +148,8 @@ public:
         if (_pTrigger->setBPM(bpm, bpmReso))
         {
             _seqReadyCountMax = bpmReso / 4;
+            // Serial.print(_seqReadyCountMax);
+            // Serial.println();
         }
     }
 
@@ -355,6 +359,14 @@ public:
     {
         int8_t result = 0;
 
+        if (_clock == CLOCK::EXT)
+        {
+            if (!_syncIn.isAlive())
+            {
+                reset();
+            }
+        }
+
         if (!_pTrigger->ready())
         {
             updateGateOut(false);
@@ -372,7 +384,6 @@ public:
             // Serial.print(_ssm.getPlayNote());
             // Serial.println();
         }
-
 
         if (_seqReadyCount == 0)
         {

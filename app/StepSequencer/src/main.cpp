@@ -40,7 +40,7 @@ static SmoothAnalogRead cv2;
 
 // step seq
 static StepSeqPlayControl sspc(&u8g2);
-static int16_t extSync;
+static int16_t syncMode = 2;
 static int16_t octUnder;
 static int16_t octUpper;
 static int16_t gateMin;
@@ -80,7 +80,7 @@ typedef struct
 } SettingMenu;
 
 static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
-static const char onoff[][5] = {"OFF", "ON"};
+static const char syncModes[][5] = {"INT", "EXT"};
 static const char shTriggers[][5] = {"CLK", "EUC"};
 static const char shSources[][5] = {"INT", "EXT"};
 SettingMenu set[] = {
@@ -100,7 +100,7 @@ SettingMenu set[] = {
         SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
         SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
         SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0),
-        SettingItem16(0, 1, 1, &extSync, "SYNC IN: %d", onoff, 0),
+        SettingItem16(0, 2, 1, &syncMode, "SYNC MODE: %s", syncModes, 3),
     }}};
 
 void initOLED()
@@ -374,7 +374,7 @@ void loop1()
         break;
     default:
         requiresUpdate |= set[0].items[menuIndex - 8].add(encValue);
-        sspc.setClockMode(extSync ? StepSeqPlayControl::CLOCK::EXT : StepSeqPlayControl::CLOCK::INT);
+        sspc.setClockMode((StepSeqPlayControl::CLOCK)syncMode);
         sspc.setOctUnder(octUnder);
         sspc.setOctUpper(octUpper);
         sspc.setGateMin(gateMin);

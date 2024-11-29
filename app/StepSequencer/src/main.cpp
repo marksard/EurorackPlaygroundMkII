@@ -40,7 +40,7 @@ static SmoothAnalogRead cv2;
 
 // step seq
 static StepSeqPlayControl sspc(&u8g2);
-static int16_t syncMode = 2;
+static int16_t syncMode = 0;
 static int16_t octUnder;
 static int16_t octUpper;
 static int16_t gateMin;

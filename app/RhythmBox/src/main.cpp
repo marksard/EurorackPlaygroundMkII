@@ -113,7 +113,8 @@ SettingMenu set = {
 
 static PatternSeq seq;
 static EdgeChecker clockEdge;
-static uint8_t clockGate = 0;
+// static uint8_t clockGate = 0;
+static bool clockAlive = false;
 static int16_t clockCount = 0;
 // 1小節4打の16ステップを4つ=16小節
 static int16_t resetCount = STEP_TOTAL;
@@ -150,14 +151,6 @@ void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
     // gpio_put(LED1, HIGH);
-
-    bool trig = clockEdge.isEdgeHigh();
-    clockGate = clockEdge.getValue();
-    if (trig)
-    {
-        clockCount++;
-        clockCount = clockCount % resetCount;
-    }
 
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
@@ -233,6 +226,19 @@ void loop()
     int8_t triggerCV1 = cv1Value > 2048;
     int8_t triggerCV2 = cv2Value > 2048;
 
+    bool trig = clockEdge.isEdgeHigh();
+    // clockGate = clockEdge.getValue();
+
+    if (trig)
+    {
+        if (clockAlive)
+        {
+            clockCount++;
+            clockCount = clockCount % resetCount;
+        }
+        clockAlive = true;
+    }
+
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
         pKit[i]->setSpeed(pitches[i]);
@@ -253,7 +259,7 @@ void loop()
             pKit[i]->play(triggerCV2);
             continue;
         }
-        int state = clockGate;
+        int state = trig;
         int beat = seq.getBeat(i, clockCount);
         if (i == 4 && isSDFill)
         {
@@ -278,6 +284,12 @@ void loop()
     // カウンタリセット時点灯
     gpio_put(LED1, (clockCount & (STEP_MAX - 1)) == 0 ? HIGH : LOW);
     gpio_put(LED2, clockCount == 0 ? HIGH : LOW);
+
+    if (!clockEdge.isAlive())
+    {
+        clockCount = 0;
+        clockAlive = false;
+    }
 
     // static uint8_t dispCount = 0;
     // dispCount++;
@@ -326,7 +338,7 @@ void loop1()
 
     if (btn0 == 1)
     {
-        clockCount = resetCount - 1;
+        clockCount = 0;
     }
 
     if (menuIndex < SEQUENCER_TOTAL) {

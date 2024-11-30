@@ -40,7 +40,7 @@ public:
 
     /// @brief 動作方向を取得
     /// @return 0:none plus:clockwise minus:counter clockwise
-    int8_t getDirection(bool withoutAcc = false)
+    int8_t getDirection(bool accelerate = false)
     {
         byte value1, value2;
         getPinValue(&value1, &value2);
@@ -54,13 +54,13 @@ public:
             _timePrev = _timeCurrent;
             _timeCurrent = micros();
             _index = 0;
-            _value = withoutAcc ? 1 : getDelta();
+            _value = accelerate ? getDelta() : 1;
             break;
         case 0x7:
             _timePrev = _timeCurrent;
             _timeCurrent = micros();
             _index = 0;
-            _value = withoutAcc ? -1 : getDelta() * -1;
+            _value = accelerate ? getDelta() * -1 : -1;
             break;
         default:
             if (!_holdMode)

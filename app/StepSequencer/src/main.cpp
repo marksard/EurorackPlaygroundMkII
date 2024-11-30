@@ -253,7 +253,7 @@ void setup()
 void loop()
 {
     pot.analogReadDropLow4bit();
-    enc.getDirection(true);
+    enc.getDirection();
     uint16_t voct = vOct.analogReadDirect();
     int16_t cv1Value = cv1.analogReadDirect();
     uint16_t cv2Value = cv2.analogReadDirect();

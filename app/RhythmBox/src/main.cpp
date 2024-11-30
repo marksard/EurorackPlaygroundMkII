@@ -215,10 +215,10 @@ void setup()
 
 void loop()
 {
-    bool withoutAcc = encMode && menuIndex >= SEQUENCER_TOTAL ? false : true;
+    bool acc = encMode && menuIndex >= SEQUENCER_TOTAL ? true : false;
     
     pot.analogReadDirectFast();
-    enc.getDirection(withoutAcc);
+    enc.getDirection(acc);
     uint16_t voct = vOct.analogReadDirectFast();
     int16_t cv1Value = cv1.analogReadDirectFast();
     uint16_t cv2Value = cv2.analogReadDirectFast();

@@ -267,7 +267,7 @@ void setup()
 void loop()
 {
     uint16_t potValue = pot.analogRead(true, true);
-    int8_t encValue = enc.getDirection(true);
+    int8_t encValue = enc.getDirection();
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();

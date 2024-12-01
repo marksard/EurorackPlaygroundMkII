@@ -17,16 +17,16 @@
 #include "../../commonlib/common/pwm_wrapper.h"
 #include "Oscillator.hpp"
 #include "EepromData.h"
+#include "SmoothRandomCV.hpp"
 
-// #define CPU_CLOCK 133000000.0
-#define CPU_CLOCK 150000000.0
+#define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
 #define PWM_RESO 4096         // 11bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
-// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 2) // 120kHzくらいにはなる
-#define SAMPLE_FREQ 44100
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4) // 73.2khz
+// #define SAMPLE_FREQ 88200
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -60,6 +60,7 @@ const char vclfo[][5] = {"VCO", "LFO"};
 const char onoff[][5] = {"OFF", "ON"};
 const char selvoct[][5] = {"OFF", "VOCT", "CV1", "CV2"};
 const char selcv[][5] = {"OFF", "CV1", "CV2"};
+static SmoothRandomCV smoothRand(ADC_RESO);
 
 SettingItem16 commonSettings[] =
 {
@@ -71,8 +72,16 @@ SettingItem16 commonSettings[] =
     SettingItem16(-200, 200, 1, &userConfig.voctTune, "Init  VOCT:%4d", NULL, 0)
 };
 
+SettingItem16 smoothRandSettings[] =
+{
+    SettingItem16(0, 100, 1, &userConfig.smoothLevel, "CV Level: %d", NULL, 0),
+    SettingItem16(1, 100, 1, &userConfig.smoothncurve, "CV Curve: %d", NULL, 0),
+    SettingItem16(0, 32, 1, &userConfig.smoothMaxFreq, "LFO MaxF:%d", NULL, 0),
+};
+
 static MenuSection16 menu[] = {
     {"SETTINGS", commonSettings, sizeof(commonSettings) / sizeof(commonSettings[0])},
+    {"SMOOTH RND", smoothRandSettings, sizeof(smoothRandSettings) / sizeof(smoothRandSettings[0])},
 };
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
@@ -219,9 +228,9 @@ void setup()
 
     pot.init(POT1);
     enc.init(EC1A, EC1B);
-    buttons[0].init(BTN1);
-    buttons[1].init(BTN2);
-    buttons[2].init(BTN3);
+    buttons[0].init(BTN1, false);
+    buttons[1].init(BTN2, false);
+    buttons[2].init(BTN3, false);
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);
@@ -492,6 +501,14 @@ void loop()
 
     max_coarse_freq = userConfig.rangeMode ? (float)LFO_MAX_COARSE_FREQ : (float)VCO_MAX_COARSE_FREQ;
 
+    smoothRand.setCurve(userConfig.smoothncurve);
+    smoothRand.setMaxFreq(userConfig.smoothMaxFreq);
+    smoothRand.setMaxLevel(userConfig.smoothLevel);
+    smoothRand.update(false, false);
+    float lastFreq = smoothRand.getFreq();
+    float lastLevel = smoothRand.getLevel();
+    pwm_set_gpio_level(OUT5, lastLevel);
+
     // static uint8_t dispCount = 0;
     // dispCount++;
     // if (dispCount == 0)
@@ -501,7 +518,7 @@ void loop()
     //     Serial.print(cv1Value);
     //     Serial.print(", ");
     //     Serial.print(cv2Value);
-    //     // Serial.print(", ");
+    //     Serial.print(", ");
     //     // Serial.print(digitalRead(GATE));
     //     // Serial.print(userConfig.voctTune);
     //     // Serial.print(", ");
@@ -516,7 +533,7 @@ void loop()
     //     Serial.println();
     // }
 
-    sleep_us(50); // 20kHz
+    sleep_us(100); // 10kHz
     // sleep_ms(1);
 }
 

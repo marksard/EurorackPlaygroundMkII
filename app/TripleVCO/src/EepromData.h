@@ -19,7 +19,7 @@ void initEEPROM()
 }
 
 // 設定値系
-const static char *UI_VER = "svco_conf_001\0";
+const static char *UI_VER = "svco_conf_002\0";
 struct UserConfig
 {
     char ver[15];
@@ -41,6 +41,9 @@ struct UserConfig
     int16_t oscCVOct;
     int16_t oscAParaCV;
     int16_t oscBWaveCV;
+    int16_t smoothLevel;
+    int16_t smoothncurve;
+    int16_t smoothMaxFreq;
 };
 
 int startUserConfigAddress = 0;
@@ -64,10 +67,13 @@ void initUserConfig(UserConfig *pUserConfig)
     pUserConfig->oscCPhaseShift = 5;
     pUserConfig->oscCFolding = 0;
     pUserConfig->rangeMode = 0;
-    pUserConfig-> oscBVOct = 0;
-    pUserConfig-> oscCVOct = 0;
-    pUserConfig-> oscAParaCV = 0;
-    pUserConfig-> oscBWaveCV = 0;
+    pUserConfig->oscBVOct = 0;
+    pUserConfig->oscCVOct = 0;
+    pUserConfig->oscAParaCV = 0;
+    pUserConfig->oscBWaveCV = 0;
+    pUserConfig->smoothLevel = 100;
+    pUserConfig->smoothncurve = 3;
+    pUserConfig->smoothMaxFreq = 3;
 }
 
 void loadUserConfig(UserConfig *pUserConfig)

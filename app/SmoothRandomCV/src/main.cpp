@@ -55,9 +55,9 @@ static uint8_t selReso[] = { 4, 8, 12, 16 };
 static Oscillator lfo;
 static EdgeChecker clockEdge;
 static PollingTimeEvent pollingEvent;
-static SmoothRandomCV src(ADC_RESO);
+static SmoothRandomCV smoothRand(ADC_RESO);
 static TriggerOut rndMultiplyOut;
-static RandomFast rnd;
+static RandomFast randFast;
 //////////////////////////////////////////
 
 // 画面周り
@@ -198,18 +198,18 @@ void loop()
     requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
     lfo.setWave((Oscillator::Wave)wave);
 
-    src.setCurve(curve);
-    src.setMaxFreq(maxFreq);
-    src.setMaxLevel(level);
+    smoothRand.setCurve(curve);
+    smoothRand.setMaxFreq(maxFreq);
+    smoothRand.setMaxLevel(level);
 
     bool edgeHigh = clockEdge.isEdgeHigh();
     bool edgeGate = clockEdge.getValue();
     uint16_t edgeBPM = clockEdge.getBPM();
 
-    src.update(edgeHigh, clockMode);
+    smoothRand.update(edgeHigh, clockMode);
 
-    float lastFreq = src.getFreq();
-    float lastLevel = src.getLevel();
+    float lastFreq = smoothRand.getFreq();
+    float lastLevel = smoothRand.getLevel();
 
     lfo.setFrequency(max(lastFreq, minFreq == 0 ? 0.05 : minFreq));
     pwm_set_gpio_level(OUT2, lastLevel);
@@ -217,7 +217,7 @@ void loop()
 
     if (edgeHigh)
     {
-        int8_t selResoIndex = rnd.getRandom16(minMultiply, maxMultiply + 1);
+        int8_t selResoIndex = randFast.getRandom16(minMultiply, maxMultiply + 1);
         pollingEvent.setBPM(edgeBPM, selReso[selResoIndex]);
         pollingEvent.stop();
         pollingEvent.start();

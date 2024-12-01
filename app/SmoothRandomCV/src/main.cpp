@@ -61,34 +61,36 @@ static RandomFast rnd;
 //////////////////////////////////////////
 
 // 画面周り
-#define MENU_MAX (8)
-static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
 PollingTimeEvent updateOLED;
-
-typedef struct
-{
-    char title[12];
-    SettingItemF items[MENU_MAX];
-} SettingMenu;
 
 const char waveName[][5] = {"SQU", "DSAW", "USAW", "TRI", "SIN"};
 const char triggerName[][5] = {"INT", "EXT"};
 const char selMultiplyName[][5] = { "x1", "x2", "x3", "x4" };
 
-SettingMenu set[] = {
-    {"RND MODULE",
-     {
-         SettingItemF(0.0, 1.0, 1.0, &clockMode, "RND CLK Mode: %s", triggerName, 2),
-         SettingItemF(0.0, 100.0, 1.0, &level, "RND CV Level: %3.0f", NULL, 0),
-         SettingItemF(1.0, 50.0, 1.0, &curve, "RND CV Curve: %3.0f", NULL, 0),
-         SettingItemF(0.0, (float)Oscillator::Wave::MAX, 1.0, &wave, "RND LFO Wav: %s", waveName, (int16_t)Oscillator::Wave::MAX + 1),
-         SettingItemF(0.0, 20.0, 0.1, &minFreq, "RND LFO MinF:%3.1f", NULL, 0),
-         SettingItemF(0.0, 20.0, 0.1, &maxFreq, "RND LFO MaxF:%3.1f", NULL, 0),
-         SettingItemF(0.0, 3.0, 1.0, &minMultiply, "CLK MUL Min: %s", selMultiplyName, 4),
-         SettingItemF(0.0, 3.0, 1.0, &maxMultiply, "CLK MUL Max: %s", selMultiplyName, 4),
-     }}};
+SettingItemF rndSettings[] =
+{
+    SettingItemF(0.0, 1.0, 1.0, &clockMode, "CLK Mode: %s", triggerName, 2),
+    SettingItemF(0.0, 100.0, 1.0, &level, "CV Level: %3.0f", NULL, 0),
+    SettingItemF(1.0, 50.0, 1.0, &curve, "CV Curve: %3.0f", NULL, 0),
+    SettingItemF(0.0, (float)Oscillator::Wave::MAX, 1.0, &wave, "LFO Wav: %s", waveName, (int16_t)Oscillator::Wave::MAX + 1),
+    SettingItemF(0.0, 20.0, 0.1, &minFreq, "LFO MinF:%3.1f", NULL, 0),
+    SettingItemF(0.0, 20.0, 0.1, &maxFreq, "LFO MaxF:%3.1f", NULL, 0),
+};
+
+SettingItemF clkSettings[] =
+{
+    SettingItemF(0.0, 3.0, 1.0, &minMultiply, "MUL Min: %s", selMultiplyName, 4),
+    SettingItemF(0.0, 3.0, 1.0, &maxMultiply, "MUL Max: %s", selMultiplyName, 4),
+};
+
+static MenuSectionF menu[] = {
+    {"RND MODULE", rndSettings, sizeof(rndSettings) / sizeof(rndSettings[0])},
+    {"CLK MODULE", clkSettings, sizeof(clkSettings) / sizeof(clkSettings[0])}
+};
+
+static MenuControlF menuControl(menu, sizeof(menu) / sizeof(menu[0]));
 
 void initOLED()
 {
@@ -108,7 +110,7 @@ void dispOLED()
     requiresUpdate = 0;
     u8g2.clearBuffer();
 
-    drawSetting(&u8g2, set[0].title, set[0].items, menuIndex, MENU_MAX, encMode);
+    menuControl.draw(&u8g2, encMode);
 
     u8g2.sendBuffer();
 }
@@ -172,18 +174,15 @@ void setup()
 
 void loop()
 {
-    uint16_t potValue = pot.analogRead(true, true);
-    int8_t encValue = enc.getDirection(true);
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
+    uint16_t potValue = pot.analogRead(true, true);
+    bool acc = encMode ? true : false;
+    int8_t encValue = enc.getDirection(acc);
     uint16_t voct = vOct.analogReadDirectFast();
     int16_t cv1Value = cv1.analogReadDirectFast();
     uint16_t cv2Value = cv2.analogReadDirectFast();
-
-    static uint16_t lastPotValue = potValue;
-    static uint8_t unlock = 0;
-    static uint8_t lastMenuIndex = 0;
 
     if (btn2 == 2)
     {
@@ -192,33 +191,11 @@ void loop()
     }
     else if (encMode == 0)
     {
-        int menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
-        requiresUpdate |= menuIndex != menu ? 1 : 0;
-        menuIndex = menu;
+        requiresUpdate |= menuControl.select(encValue);
         encValue = 0;
     }
 
-    // メニュー変更時のポットロック・ロック解除
-    if (!unlock)
-    {
-        if (lastPotValue + 10 < potValue || lastPotValue - 10 > potValue)
-        {
-            unlock = 1;
-        }
-    }
-    else
-    {
-        lastPotValue = potValue;
-    }
-
-    if (lastMenuIndex != menuIndex)
-    {
-        unlock = 0;
-        requiresUpdate = 1;
-    }
-    lastMenuIndex = menuIndex;
-
-    requiresUpdate |= set[0].items[menuIndex].add(encValue);
+    requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
     lfo.setWave((Oscillator::Wave)wave);
 
     src.setCurve(curve);

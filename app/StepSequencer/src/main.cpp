@@ -66,42 +66,57 @@ static int16_t shTrigger = 1;
 static int16_t swing = 1;
 
 // 画面周り
-#define SETTINS_MENU_MAX 16
-#define MENU_MAX (8 + SETTINS_MENU_MAX)
+#define MENU_MAX (8+1)
 static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
 static PollingTimeEvent updateOLED;
 
-typedef struct
-{
-    char title[12];
-    SettingItem16 items[SETTINS_MENU_MAX];
-} SettingMenu;
-
 static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
 static const char syncModes[][5] = {"INT", "EXT"};
 static const char shTriggers[][5] = {"CLK", "EUC"};
 static const char shSources[][5] = {"INT", "EXT"};
-SettingMenu set[] = {
-    {"SETTINGS", {
-        SettingItem16(0, 16, 1, &euclidOnsets, "EUCLID ONSETS: %d", NULL, 0),
-        SettingItem16(1, 16, 1, &euclidStepSize, "EUCLID STEP: %d", NULL, 0),
-        SettingItem16(0, 1, 1, &shTrigger, "S&H TIGGER: %s", shTriggers, 2),
-        SettingItem16(0, 1, 1, &shSource, "S&H SOURCE: %s", shSources, 2),
-        SettingItem16(1, 5, 1, &shIntOctMax, "S&H INT OCT: %d", NULL, 0),
-        SettingItem16(1, 32, 1, &shIntSpeed, "S&H INT SPEED: %d", NULL, 0),
-        SettingItem16(-1, 4, 1, &octUnder, "GEN OCT UNDER: %d", NULL, 0),
-        SettingItem16(-1, 4, 1, &octUpper, "GEN OCT UPPER: %d", NULL, 0),
-        SettingItem16(0, StepSeqModel::Gate::L, 1, &gateMin, "GEN GATE MIN: %d", NULL, 0),
-        SettingItem16(1, StepSeqModel::Gate::Max, 1, &gateMax, "GEN GATE MAX: %d", NULL, 0),
-        SettingItem16(0, StepSeqModel::Gate::H, 1, &gateInitial, "GEN GATE INI: %d", NULL, 0),
-        SettingItem16(0, 3, 1, &swing, "SWING: %d", NULL, 0),
-        SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
-        SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
-        SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0),
-        SettingItem16(0, 2, 1, &syncMode, "SYNC MODE: %s", syncModes, 3),
-    }}};
+
+SettingItem16 commonSettings[] =
+{
+    SettingItem16(0, 2, 1, &syncMode, "SYNC MODE: %s", syncModes, 3),
+    SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
+    SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
+    SettingItem16(0, 3, 1, &swing, "SWING: %d", NULL, 0),
+    SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0),
+};
+
+SettingItem16 sequenceSettings[] =
+{
+    SettingItem16(-1, 4, 1, &octUnder, "OCT UNDER: %d", NULL, 0),
+    SettingItem16(-1, 4, 1, &octUpper, "OCT UPPER: %d", NULL, 0),
+    SettingItem16(0, StepSeqModel::Gate::L, 1, &gateMin, "GATE MIN: %d", NULL, 0),
+    SettingItem16(1, StepSeqModel::Gate::Max, 1, &gateMax, "GATE MAX: %d", NULL, 0),
+    SettingItem16(0, StepSeqModel::Gate::L, 1, &gateInitial, "GATE INI: %d", NULL, 0),
+};
+
+SettingItem16 euclidSettings[] =
+{
+    SettingItem16(0, 16, 1, &euclidOnsets, "ONSETS: %d", NULL, 0),
+    SettingItem16(1, 16, 1, &euclidStepSize, "STEP: %d", NULL, 0),
+};
+
+SettingItem16 shettings[] =
+{
+    SettingItem16(0, 1, 1, &shTrigger, "TIGGER: %s", shTriggers, 2),
+    SettingItem16(0, 1, 1, &shSource, "SOURCE: %s", shSources, 2),
+    SettingItem16(1, 5, 1, &shIntOctMax, "INT OCT: %d", NULL, 0),
+    SettingItem16(1, 32, 1, &shIntSpeed, "INT SPEED: %d", NULL, 0),
+};
+
+static MenuSection16 menu[] = {
+    {"COMMON", commonSettings, sizeof(commonSettings) / sizeof(commonSettings[0])},
+    {"PATTERNSEQ", sequenceSettings, sizeof(sequenceSettings) / sizeof(sequenceSettings[0])},
+    {"EUCLIDTRIG", euclidSettings, sizeof(euclidSettings) / sizeof(euclidSettings[0])},
+    {"SAMPL&HOLD", shettings, sizeof(shettings) / sizeof(shettings[0])}
+};
+
+static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
 
 void initOLED()
 {
@@ -154,7 +169,7 @@ void dispOLED()
         u8g2.drawStr(0, 0, "EDIT ACC : _ or *");
         break;
     default:
-        drawSetting(&u8g2, set[0].title, set[0].items, menuIndex - 8, MENU_MAX - 8, encMode);
+        menuControl.draw(&u8g2, encMode);
         u8g2.sendBuffer();
         return;
     }
@@ -308,9 +323,28 @@ void loop1()
     }
     else if (encMode == 0)
     {
-        int menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
-        requiresUpdate |= menuIndex != menu ? 1 : 0;
-        menuIndex = menu;
+        if (menuIndex >= MENU_MAX - 1)
+        {
+            requiresUpdate |= menuControl.select(encValue);
+            if (menuControl.isUnder()) 
+            {
+                menuIndex--;
+                requiresUpdate = true;
+            }
+            // if (menuControl.isOver())
+            // {
+            //     menuIndex = 0;
+            //     requiresUpdate = true;
+            // }
+        }
+        else
+        {
+            int menu = 0;
+            menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
+            requiresUpdate |= menuIndex != menu ? 1 : 0;
+            menuIndex = menu;
+        }
+
         encValue = 0;
     }
 
@@ -373,7 +407,7 @@ void loop1()
         }
         break;
     default:
-        requiresUpdate |= set[0].items[menuIndex - 8].add(encValue);
+        requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
         sspc.setClockMode((StepSeqPlayControl::CLOCK)syncMode);
         sspc.setOctUnder(octUnder);
         sspc.setOctUpper(octUpper);

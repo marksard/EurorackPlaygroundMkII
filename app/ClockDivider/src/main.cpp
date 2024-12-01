@@ -49,65 +49,47 @@ static int16_t divCount[6] = {1, 2, 4, 8, 3, 5};
 static int16_t backBeats[6] = {0};
 
 // 画面周り
-#define MENU_MAX (16)
-static int16_t menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
 
-typedef struct
-{
-    char title[12];
-    SettingItem16 items[MENU_MAX];
-} SettingMenu;
-
 const char trigModeName[][5] = {"RAW", "TRIG"};
 const char offon[][5] = {"OFF", "ON"};
-SettingMenu set = {
-    "CLOCK DIV",
-    {
-        SettingItem16(0, 32767, 1, &bpm, "BPM: %d", NULL, 0),
-        SettingItem16(0, 1, 1, &trigMode, "Mode: %s", trigModeName, 2),
-        SettingItem16(5, 100, 5, &trigDuration, "TrigDuration: %d", NULL, 0),
-        SettingItem16(1, 128, 1, &resetCount, "ResetCount: %d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[0], "OUT1: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[1], "OUT2: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[2], "OUT3: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[3], "OUT4: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[4], "OUT5: /%d", NULL, 0),
-        SettingItem16(1, 256, 1, &divCount[5], "OUT6: /%d", NULL, 0),
-        SettingItem16(0, 1, 1, &backBeats[0], "OUT1 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[1], "OUT2 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[2], "OUT3 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[3], "OUT4 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[4], "OUT5 BB: %s", offon, 2),
-        SettingItem16(0, 1, 1, &backBeats[5], "OUT6 BB: %s", offon, 2),
-    }};
 
-// template <typename vs = int8_t>
-// vs constrainCyclic(vs value, vs min, vs max)
-// {
-//     if (value > max)
-//         return min;
-//     if (value < min)
-//         return max;
-//     return value;
-// }
+SettingItem16 commonSettings[] =
+{
+    SettingItem16(0, 32767, 1, &bpm, "BPM: %d", NULL, 0),
+    SettingItem16(0, 1, 1, &trigMode, "Mode: %s", trigModeName, 2),
+    SettingItem16(5, 100, 5, &trigDuration, "TrigDuration: %d", NULL, 0),
+    SettingItem16(1, 128, 1, &resetCount, "ResetCount: %d", NULL, 0),
+};
 
-// inline uint8_t updateMenuIndex(uint8_t btn0, uint8_t btn1)
-// {
-//     if (btn0 == 2)
-//     {
-//         menuIndex = constrain(menuIndex - 1, 0, MENU_MAX - 1);
-//         return 1;
-//     }
-//     if (btn1 == 2)
-//     {
-//         menuIndex = constrain(menuIndex + 1, 0, MENU_MAX - 1);
-//         return 1;
-//     }
+SettingItem16 outSettings[] =
+{
+    SettingItem16(1, 256, 1, &divCount[0], "OUT1: /%d", NULL, 0),
+    SettingItem16(1, 256, 1, &divCount[1], "OUT2: /%d", NULL, 0),
+    SettingItem16(1, 256, 1, &divCount[2], "OUT3: /%d", NULL, 0),
+    SettingItem16(1, 256, 1, &divCount[3], "OUT4: /%d", NULL, 0),
+    SettingItem16(1, 256, 1, &divCount[4], "OUT5: /%d", NULL, 0),
+    SettingItem16(1, 256, 1, &divCount[5], "OUT6: /%d", NULL, 0),
+};
 
-//     return 0;
-// }
+SettingItem16 backbeatSettings[] =
+{
+    SettingItem16(0, 1, 1, &backBeats[0], "OUT1 BB: %s", offon, 2),
+    SettingItem16(0, 1, 1, &backBeats[1], "OUT2 BB: %s", offon, 2),
+    SettingItem16(0, 1, 1, &backBeats[2], "OUT3 BB: %s", offon, 2),
+    SettingItem16(0, 1, 1, &backBeats[3], "OUT4 BB: %s", offon, 2),
+    SettingItem16(0, 1, 1, &backBeats[4], "OUT5 BB: %s", offon, 2),
+    SettingItem16(0, 1, 1, &backBeats[5], "OUT6 BB: %s", offon, 2),
+};
+
+static MenuSection16 menu[] = {
+    {"COMMON", commonSettings, sizeof(commonSettings) / sizeof(commonSettings[0])},
+    {"OUTPUT", outSettings, sizeof(outSettings) / sizeof(outSettings[0])},
+    {"BACKBEAT", backbeatSettings, sizeof(backbeatSettings) / sizeof(backbeatSettings[0])},
+};
+
+static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
 
 void initOLED()
 {
@@ -126,7 +108,7 @@ void dispOLED()
 
     requiresUpdate = 0;
     u8g2.clearBuffer();
-    drawSetting(&u8g2, set.title, set.items, menuIndex, MENU_MAX, encMode);
+    menuControl.draw(&u8g2, encMode);
     u8g2.sendBuffer();
 }
 
@@ -257,12 +239,11 @@ void loop1()
     }
     else if (encMode == 0)
     {
-        int menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
-        requiresUpdate |= menuIndex != menu ? 1 : 0;
-        menuIndex = menu;
+        requiresUpdate |= menuControl.select(encValue);
         encValue = 0;
     }
-    requiresUpdate |= set.items[menuIndex].add(encValue);
+
+    requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
 
     if (btn0 == 1)
     {
@@ -286,7 +267,6 @@ void loop1()
     // Serial.print(", ");
     // Serial.print(btn2);
     // Serial.print(", ");
-    // Serial.print(menuIndex);
     // Serial.println();
     // }
 }

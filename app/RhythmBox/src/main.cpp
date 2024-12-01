@@ -68,7 +68,7 @@ float decays[SEQUENCER_TOTAL] = {1.0,0.5,1.0,1.0,1.0,1.0};
 float volumes[SEQUENCER_TOTAL] = {0.7,1.0,1.0,0.8,1.0,1.0};
 float triggers[SEQUENCER_TOTAL] = {0, 0, 0, 0, 0, 0};
 // 画面周り
-#define MENU_MAX (24+6)
+#define MENU_MAX (SEQUENCER_TOTAL + 1)
 static int16_t menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
@@ -81,35 +81,56 @@ typedef struct
 } SettingMenu;
 
 const char selTrigger[][5] = {"INT", "VOCT", "CV1", "CV2"};
-SettingMenu set = {
-    "SETTINGS",
-    {
-        SettingItemF(0.0, 3.0, 1.0, &triggers[0], "RC Trig: %s", selTrigger, 4),
-        SettingItemF(0.0, 3.0, 1.0, &triggers[1], "HH Trig: %s", selTrigger, 4),
-        SettingItemF(0.0, 3.0, 1.0, &triggers[2], "LT Trig: %s", selTrigger, 4),
-        SettingItemF(0.0, 3.0, 1.0, &triggers[3], "RM Trig: %s", selTrigger, 4),
-        SettingItemF(0.0, 3.0, 1.0, &triggers[4], "SD Trig: %s", selTrigger, 4),
-        SettingItemF(0.0, 3.0, 1.0, &triggers[5], "BD Trig: %s", selTrigger, 4),
 
-        SettingItemF(0.1, 2.0, 0.01, &pitches[0], "RC Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &decays[0], "RC Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 1.0, 0.05, &volumes[0], "RC Volume: %4.2f", NULL, 0),
-        SettingItemF(0.1, 2.0, 0.01, &pitches[1], "HH Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &decays[1], "HH Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 1.0, 0.05, &volumes[1], "HH Volume: %4.2f", NULL, 0),
-        SettingItemF(0.1, 2.0, 0.01, &pitches[2], "LT Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &decays[2], "LT Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 1.0, 0.05, &volumes[2], "LT Volume: %4.2f", NULL, 0),
-        SettingItemF(0.1, 2.0, 0.01, &pitches[3], "RM Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &decays[3], "RM Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 1.0, 0.05, &volumes[3], "RM Volume: %4.2f", NULL, 0),
-        SettingItemF(0.1, 2.0, 0.01, &pitches[4], "SD Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &decays[4], "SD Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 1.0, 0.05, &volumes[4], "SD Volume: %4.2f", NULL, 0),
-        SettingItemF(0.1, 2.0, 0.01, &pitches[5], "BD Pitch: %4.2f", NULL, 0),
-        SettingItemF(0.01, 1.0, 0.01, &decays[5], "BD Decay: %4.2f", NULL, 0),
-        SettingItemF(0.1, 1.0, 0.05, &volumes[5], "BD Volume: %4.2f", NULL, 0),
-    }};
+SettingItemF trigSettings[] =
+{
+    SettingItemF(0.0, 3.0, 1.0, &triggers[0], "RC: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &triggers[1], "HH: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &triggers[2], "LT: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &triggers[3], "RM: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &triggers[4], "SD: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &triggers[5], "BD: %s", selTrigger, 4),
+};
+
+SettingItemF volumeSettings[] =
+{
+    SettingItemF(0.1, 1.0, 0.05, &volumes[0], "RC: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &volumes[1], "HH: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &volumes[2], "LT: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &volumes[3], "RM: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &volumes[4], "SD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &volumes[5], "BD: %4.2f", NULL, 0),
+};
+
+SettingItemF decaySettings[] =
+{
+    SettingItemF(0.01, 1.0, 0.01, &decays[0], "RC %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &decays[1], "HH %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &decays[2], "LT %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &decays[3], "RM %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &decays[4], "SD %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &decays[5], "BD %4.2f", NULL, 0),
+};
+
+SettingItemF pitchSettings[] =
+{
+    SettingItemF(0.1, 2.0, 0.01, &pitches[0], "RC: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &pitches[1], "HH: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &pitches[2], "LT: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &pitches[3], "RM: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &pitches[4], "SD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &pitches[5], "BD: %4.2f", NULL, 0),
+};
+
+static MenuSectionF menu[] = {
+    {"TRIGGER", trigSettings, sizeof(trigSettings) / sizeof(trigSettings[0])},
+    {"VOLUME", volumeSettings, sizeof(volumeSettings) / sizeof(volumeSettings[0])},
+    {"DECAY", decaySettings, sizeof(decaySettings) / sizeof(decaySettings[0])},
+    {"PITCH", pitchSettings, sizeof(pitchSettings) / sizeof(pitchSettings[0])}
+};
+
+static MenuControlF menuControl(menu, sizeof(menu) / sizeof(menu[0]));
+
 
 static PatternSeq seq;
 static EdgeChecker clockEdge;
@@ -143,7 +164,7 @@ void dispOLED()
     }
 
     requiresUpdate = 0;
-    drawSetting(&u8g2, set.title, set.items, menuIndex - 6, MENU_MAX - 6, encMode);
+    menuControl.draw(&u8g2, encMode);
     u8g2.sendBuffer();
 }
 
@@ -330,9 +351,28 @@ void loop1()
     }
     else if (encMode == 0)
     {
-        int menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
-        requiresUpdate |= menuIndex != menu ? 1 : 0;
-        menuIndex = menu;
+        if (menuIndex >= MENU_MAX - 1)
+        {
+            requiresUpdate |= menuControl.select(encValue);
+            if (menuControl.isUnder()) 
+            {
+                menuIndex--;
+                requiresUpdate = true;
+            }
+            // if (menuControl.isOver())
+            // {
+            //     menuIndex = 0;
+            //     requiresUpdate = true;
+            // }
+        }
+        else
+        {
+            int menu = 0;
+            menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
+            requiresUpdate |= menuIndex != menu ? 1 : 0;
+            menuIndex = menu;
+        }
+
         encValue = 0;
     }
 
@@ -349,7 +389,7 @@ void loop1()
     }
     else
     {
-        requiresUpdate |= set.items[menuIndex - SEQUENCER_TOTAL].add(encValue);
+        requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
     }
 
     int8_t muteIndex = map(potValue, 0, 4095, 0, SEQUENCER_TOTAL);

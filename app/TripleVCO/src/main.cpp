@@ -50,30 +50,32 @@ static Oscillator osc[3];
 static float max_coarse_freq = VCO_MAX_COARSE_FREQ;
 
 // 画面周り
-#define MENU_MAX (3 + 6)
+#define MENU_MAX (3 + 1)
 static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
 PollingTimeEvent updateOLED;
 
-typedef struct
-{
-    char title[12];
-    SettingItem16 items[6];
-} SettingMenu;
-
 const char vclfo[][5] = {"VCO", "LFO"};
 const char onoff[][5] = {"OFF", "ON"};
 const char selvoct[][5] = {"OFF", "VOCT", "CV1", "CV2"};
 const char selcv[][5] = {"OFF", "CV1", "CV2"};
-SettingMenu set[] = {
-    {"SETTINGS",
-     {SettingItem16(0, 1, 1, &userConfig.rangeMode, "Range Mode: %s", vclfo, 2),
-      SettingItem16(0, 3, 1, &userConfig.oscBVOct, "VCO B VOCT: %s", selvoct, 4),
-      SettingItem16(0, 3, 1, &userConfig.oscCVOct, "LFO   VOCT: %s", selvoct, 4),
-      SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "VCO A Para: %s", selcv, 3),
-      SettingItem16(0, 2, 1, &userConfig.oscBWaveCV, "VCO B Wave: %s", selcv, 3),
-      SettingItem16(-200, 200, 1, &userConfig.voctTune, "Init  VOCT:%4d", NULL, 0)}}};
+
+SettingItem16 commonSettings[] =
+{
+    SettingItem16(0, 1, 1, &userConfig.rangeMode, "Range Mode: %s", vclfo, 2),
+    SettingItem16(0, 3, 1, &userConfig.oscBVOct, "VCO B VOCT: %s", selvoct, 4),
+    SettingItem16(0, 3, 1, &userConfig.oscCVOct, "LFO   VOCT: %s", selvoct, 4),
+    SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "VCO A Para: %s", selcv, 3),
+    SettingItem16(0, 2, 1, &userConfig.oscBWaveCV, "VCO B Wave: %s", selcv, 3),
+    SettingItem16(-200, 200, 1, &userConfig.voctTune, "Init  VOCT:%4d", NULL, 0)
+};
+
+static MenuSection16 menu[] = {
+    {"SETTINGS", commonSettings, sizeof(commonSettings) / sizeof(commonSettings[0])},
+};
+
+static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
 
 static char modeDisp[2][4] = {"VCO", "LFO"};
 static char oscNames[3][2] = {"A", "B", "C"};
@@ -170,7 +172,7 @@ void dispOLED()
         drawOSC(2, 1);
         break;
     default:
-        drawSetting(&u8g2, set[0].title, set[0].items, menuIndex - 3, MENU_MAX - 3, encMode);
+        menuControl.draw(&u8g2, encMode);
         break;
     }
 
@@ -323,9 +325,28 @@ void loop()
     }
     else if (encMode == 0)
     {
-        int menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
-        requiresUpdate |= menuIndex != menu ? 1 : 0;
-        menuIndex = menu;
+        if (menuIndex >= MENU_MAX - 1)
+        {
+            requiresUpdate |= menuControl.select(encValue);
+            if (menuControl.isUnder()) 
+            {
+                menuIndex--;
+                requiresUpdate = true;
+            }
+            // if (menuControl.isOver())
+            // {
+            //     menuIndex = 0;
+            //     requiresUpdate = true;
+            // }
+        }
+        else
+        {
+            int menu = 0;
+            menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
+            requiresUpdate |= menuIndex != menu ? 1 : 0;
+            menuIndex = menu;
+        }
+
         encValue = 0;
     }
 
@@ -428,7 +449,7 @@ void loop()
         userConfig.oscCWave = osc[2].getWave();
         break;
     default:
-        requiresUpdate |= set[0].items[menuIndex - 3].add(encValue);
+        requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
         break;
     }
 

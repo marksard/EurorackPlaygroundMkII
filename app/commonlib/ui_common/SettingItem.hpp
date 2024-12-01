@@ -8,6 +8,7 @@
 #pragma once
 #include <Arduino.h>
 
+/// 設定項目
 template <typename vs = int16_t>
 class SettingItem
 {
@@ -50,7 +51,8 @@ public:
 
     vs get() { return *_pAttachValue; }
 
-    void getDisp(char *disp_buf)
+    // 外部で用意する表示バッファに設定項目名を入れる
+    void updateDispStrings(char *disp_buf)
     {
         if (_valueNamesCount > 0)
         {
@@ -77,51 +79,155 @@ typedef SettingItem<int16_t> SettingItem16;
 typedef SettingItem<uint16_t> SettingItem16u;
 typedef SettingItem<float> SettingItemF;
 
+// 設定メニューセクション
 template <typename vs = int16_t>
-void drawSetting(U8G2 *pU8g2, const char *title, SettingItem<vs> *pSettingItems, 
-    uint8_t menuIndex, uint8_t menuMax, uint8_t selector = -1)
+struct MenuSection
 {
-    static char disp_buf[3][32] = {0};
-    pU8g2->setFont(u8g2_font_profont22_tf);
-    sprintf(disp_buf[0], title);
-    pU8g2->drawStr(0, 0, disp_buf[0]);
+    char title[12];
+    SettingItem<vs> *pItemList;
+    uint8_t itemCount;
+};
+typedef MenuSection<int16_t> MenuSection16;
+typedef MenuSection<uint16_t> MenuSection16u;
+typedef MenuSection<float> MenuSectionF;
 
-    pU8g2->setFont(u8g2_font_7x14B_tf);
-    static uint8_t menuSlider = 0;
-    menuSlider = map(menuIndex, 0, menuMax, 0, 3);
-    // Serial.print(menuIndex);
-    // Serial.print(",");
-    // Serial.print(menuSlider);
-    // Serial.println();
-    for (uint8_t i = 0; i < 3; ++i)
+// 設定メニューコントロール
+template <typename vs = int16_t>
+class MenuControl
+{
+public:
+    MenuControl(MenuSection<vs> *pSection, uint8_t sectionCount)
     {
-        if (i >= menuMax)
-            break;
-        bool sel = menuSlider == i ? true : false;
-        pSettingItems[menuIndex - menuSlider + i].getDisp(disp_buf[i]);
-        if (sel)
+        _pSection = pSection;
+        _sectionCount = sectionCount;
+
+        _itemIndex = 0;
+        _sectionIndex = 0;
+        _underIndex = false;
+        _overIndex = false;
+    }
+
+    /// @brief メニュー選択
+    /// @param value エンコーダーのデルタ値
+    /// @return 更新ありなし
+    /// セクション内なら前後アイテムに、セクションからはみ出たら前後セクションに移動
+    bool select(int8_t value)
+    {
+        int itemNextIndex = _itemIndex + value;
+        int sectionNextIndex = 0;
+        _underIndex = false;
+        _overIndex = false;
+        if (itemNextIndex < 0)
         {
-            if (selector == 1)
+            sectionNextIndex = constrain(_sectionIndex - 1, 0, _sectionCount - 1);
+            if (_sectionIndex != sectionNextIndex)
             {
-                pU8g2->drawHLine(7, 28 + (16 * i), 120);
+                itemNextIndex = _pSection[sectionNextIndex].itemCount - 1;
             }
             else
             {
-                pU8g2->drawBox(0, 17 + (16 * i), 6, 10);
+                _underIndex = true;
+                itemNextIndex = _itemIndex;
             }
+        }
+        else if (itemNextIndex > _pSection[_sectionIndex].itemCount - 1)
+        {
+            sectionNextIndex = constrain(_sectionIndex + 1, 0, _sectionCount - 1);
+            if (_sectionIndex != sectionNextIndex)
+            {
+                itemNextIndex = 0;
+            }
+            else
+            {
+                _overIndex = true;
+                itemNextIndex = _itemIndex;
+            }
+        }
+        else {
+            sectionNextIndex = _sectionIndex;
+        }
+
+        bool result = _itemIndex != itemNextIndex ? true : false;
+        _itemIndex = itemNextIndex;
+        result |= _sectionIndex != sectionNextIndex ? true : false;
+        _sectionIndex = sectionNextIndex;
+        return result;
+    }
+
+    bool isUnder() { return (_underIndex); }
+    bool isOver() { return (_overIndex); }
+
+    bool addValue2CurrentSetting(float value)
+    {
+        return _pSection[_sectionIndex].pItemList[_itemIndex].add(value);
+    }
+
+    void draw(U8G2 *pU8g2, bool encMode)
+    {
+        drawSetting(pU8g2, _pSection[_sectionIndex].title, 
+                            _pSection[_sectionIndex].pItemList, _itemIndex, 
+                            _pSection[_sectionIndex].itemCount, encMode);
+    }
+
+private:
+    void drawSetting(U8G2 *pU8g2, const char *title, SettingItem<vs> *pSettingItems, 
+        uint8_t itemIndex, uint8_t itemCount, uint8_t selector = -1)
+    {
+        static uint8_t drawStrYPos[3] = { 16, 32, 48 };
+        static char disp_buf[3][32] = {0};
+        pU8g2->setFont(u8g2_font_profont22_tf);
+        sprintf(disp_buf[0], title);
+        pU8g2->drawStr(0, 0, disp_buf[0]);
+
+        pU8g2->setFont(u8g2_font_7x14B_tf);
+        static uint8_t menuSlider = 0;
+        menuSlider = map(itemIndex, 0, itemCount, 0, 3);
+        // Serial.print(itemIndex);
+        // Serial.print(",");
+        // Serial.print(menuSlider);
+        // Serial.println();
+        for (uint8_t i = 0; i < 3; ++i)
+        {
+            if (i >= itemCount)
+            {
+                break;
+            }
+
+            bool sel = menuSlider == i ? true : false;
+            pSettingItems[itemIndex - menuSlider + i].updateDispStrings(disp_buf[i]);
+            pU8g2->drawStr(8, drawStrYPos[i], disp_buf[i]);
+            if (sel)
+            {
+                if (selector == 1)
+                {
+                    pU8g2->drawHLine(7, 28 + (16 * i), 120);
+                }
+                else
+                {
+                    pU8g2->drawBox(0, 17 + (16 * i), 6, 10);
+                }
+            }
+        }
+
+
+        if (itemIndex < 1)
+        {
+            pU8g2->drawHLine(0, 16, 127);
+        }
+        if (itemIndex == itemCount - 1)
+        {
+            pU8g2->drawHLine(0, 63, 127);
         }
     }
 
-    pU8g2->drawStr(8, 16, disp_buf[0]);
-    pU8g2->drawStr(8, 32, disp_buf[1]);
-    pU8g2->drawStr(8, 48, disp_buf[2]);
-
-    if (menuIndex < 1)
-    {
-        pU8g2->drawHLine(0, 16, 127);
-    }
-    if (menuIndex == menuMax - 1)
-    {
-        pU8g2->drawHLine(0, 63, 127);
-    }
-}
+private:
+    int _itemIndex;
+    int _sectionIndex;
+    MenuSection<vs> *_pSection;
+    uint8_t _sectionCount;
+    bool _underIndex;
+    bool _overIndex;
+};
+typedef MenuControl<int16_t> MenuControl16;
+typedef MenuControl<uint16_t> MenuControl16u;
+typedef MenuControl<float> MenuControlF;

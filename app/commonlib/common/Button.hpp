@@ -26,13 +26,17 @@ public:
         _pinState = 0;
         _holdStage = 0;
         _holdTime = 500*1000;
+        _lastMicros = 0;
+        _leadLastMicros = 0;
+        _lastResult = 0;
 
         pinMode(pin, INPUT_PULLUP);
 
         // 空読み
         for(int i = 0; i < 8; ++i)
         {
-            getState();
+            uint8_t value = readPin();
+            _pinState = (_pinState << 1) | value;
         }
     }
 
@@ -40,8 +44,14 @@ public:
     /// @return 0:None 1:Button down 2:Button up 3:Holding 4:Holded
     inline uint8_t getState()
     {
-        uint8_t result = 0;
         uint8_t value = readPin();
+        if (micros() < _leadLastMicros + 1000)
+        {
+            return _lastResult;
+        }
+        _leadLastMicros = micros();
+        _lastResult = 0;
+
         // 簡単チャタ取り
         _pinState = (_pinState << 1) | value;
 
@@ -52,26 +62,26 @@ public:
             if (_pinState == 0x0F)
             {
                 _holdStage = 0;
-                result = 4;
+                _lastResult = 4;
             }
             else if (_pinState == 0x00)
             {
-                result = 3;
+                _lastResult = 3;
             }
 
-            return result;
+            return _lastResult;
         }
 
         // Button down
         if (_pinState == 0xF0)
         {
-            result = 1;
+            _lastResult = 1;
             _holdStage = 0;
         }
         // Button up
         else if (_pinState == 0x0F)
         {
-            result = 2;
+            _lastResult = 2;
             _holdStage = 0;
         }
         // Hold check
@@ -90,7 +100,7 @@ public:
             }
         }
 
-        return result;
+        return _lastResult;
     }
 
     void setHoldTime(int16_t mills)
@@ -104,6 +114,8 @@ protected:
     uint8_t _holdStage;
     ulong _lastMicros;
     ulong _holdTime;
+    ulong _leadLastMicros;
+    uint8_t _lastResult;
 
     /// @brief ピン値読込
     /// @return

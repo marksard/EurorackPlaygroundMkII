@@ -150,11 +150,9 @@ void initOLED()
 
 void dispOLED()
 {
-    u8g2.clearBuffer();
-
     if (menuIndex < 6) {
-        seq.updateDisplay(&u8g2, clockCount & (STEP_MAX - 1), menuIndex, encMode);
-        u8g2.sendBuffer();
+        seq.updateDisplay(&u8g2, clockCount & (STEP_MAX - 1), menuIndex, encMode, requiresUpdate);
+        requiresUpdate = 0;
         return;
     }
 
@@ -163,6 +161,7 @@ void dispOLED()
         return;
     }
 
+    u8g2.clearBuffer();
     requiresUpdate = 0;
     menuControl.draw(&u8g2, encMode);
     u8g2.sendBuffer();
@@ -270,16 +269,17 @@ void loop()
             pKit[i]->play(triggerVOct);
             continue;
         }
-        if (triggers[i] == 2)
+        else if (triggers[i] == 2)
         {
             pKit[i]->play(triggerCV1);
             continue;
         }
-        if (triggers[i] == 3)
+        else if (triggers[i] == 3)
         {
             pKit[i]->play(triggerCV2);
             continue;
         }
+
         int state = trig;
         int beat = seq.getBeat(i, clockCount);
         if (i == 4 && isSDFill)
@@ -326,14 +326,14 @@ void loop()
     // Serial.println();
     // }
 
-    sleep_us(100);
+    sleep_us(25);
     // sleep_ms(1);
 }
 
 void setup1()
 {
     initOLED();
-    updateOLED.setMills(33);
+    updateOLED.setMills(60);
     updateOLED.start();
 }
 
@@ -384,7 +384,7 @@ void loop1()
     if (menuIndex < SEQUENCER_TOTAL) {
         if (encMode)
         {
-            seq.addSelectPattern((menuIndex % SEQUENCER_TOTAL), encValue);
+            requiresUpdate |= seq.addSelectPattern((menuIndex % SEQUENCER_TOTAL), encValue);
         }
     }
     else

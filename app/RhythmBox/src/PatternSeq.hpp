@@ -69,8 +69,8 @@ struct PatternSetting
 public:
     PatternSetting()
     {
-        
     }
+
 public:
     char disp_name[3] = {0};
     int16_t currentPattern;
@@ -81,15 +81,44 @@ class PatternSeq
 public:
     PatternSeq()
     {
-
     }
 
-    void updateDisplay(U8G2 *pU8g2, int8_t currentStep, int8_t selector, int8_t mode)
+    void updateDisplay(U8G2 *pU8g2, int8_t currentStep, int8_t selector, int8_t mode, bool requiresUpdate = true)
     {
         uint8_t origin_x = 15;
         uint8_t origin_y = 15;
         uint8_t seqXStep = 7;
         uint8_t seqYStep = 8;
+
+        if (requiresUpdate == false)
+        {
+            pU8g2->setDrawColor(0);
+            pU8g2->drawBox(origin_x, origin_y - 2, 128, 4);
+            pU8g2->setDrawColor(2);
+            pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 4);
+            pU8g2->sendBuffer();
+            return;
+
+            if (_lastSelector != selector)
+            {
+                requiresUpdate = true;
+            }
+            _lastSelector = selector;
+        }
+
+        if (requiresUpdate == false)
+        {
+            return;
+        }
+
+        pU8g2->clearBuffer();
+
+        pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 4);
+
+        if (mode == 0)
+            pU8g2->drawBox(10, (origin_y + 1) + (seqYStep * (selector % SEQUENCER_TOTAL)), 4, 6);
+        else
+            pU8g2->drawStr(10, (origin_y + 1) + (seqYStep * (selector % SEQUENCER_TOTAL)), ">");
 
         pU8g2->setFont(u8g2_font_7x14B_tf);
         pU8g2->drawStr(0, 0, "PATTERN SEQ");
@@ -97,12 +126,12 @@ public:
 
         for (int8_t i = 0; i < SEQUENCER_TOTAL + 1; ++i)
         {
-            pU8g2->drawStr(0, origin_y + (seqYStep * i), patternSetting[i].disp_name);
+            pU8g2->drawStr(0, origin_y + (seqYStep * i), _patternSetting[i].disp_name);
             // pU8g2->drawHLine(origin_x, origin_y + (seqYStep * i), 127);
         }
 
         // for (int8_t i = 0; i < STEP_MAX + 1; ++i)
-        for (int8_t i = 4; i < STEP_MAX; i+=4)
+        for (int8_t i = 4; i < STEP_MAX; i += 4)
         {
             pU8g2->drawVLine(origin_x + (seqXStep * i), origin_y, 63);
         }
@@ -111,50 +140,59 @@ public:
         {
             for (int8_t y = 0; y < SEQUENCER_TOTAL; ++y)
             {
-                uint8_t beat = beats[patternSetting[y].currentPattern][x];
+                uint8_t beat = beats[_patternSetting[y].currentPattern][x];
                 int8_t offset = 1;
-                uint8_t odd = (beat & (1+4));
-                uint8_t even = (beat & (2+8));
+                uint8_t odd = (beat & (1 + 4));
+                uint8_t even = (beat & (2 + 8));
                 // 1小節：左上、2小節：右上、3小節：左下、4小節：右下に四角で表示
                 if (odd > 0)
                 {
-                    pU8g2->drawBox((origin_x + offset) + (seqXStep * x), 
-                                (origin_y + offset) + (seqYStep * y) + (odd == 4 ? 3 : 0), 
-                                3, odd == 5 ? 6 : 3);
+                    pU8g2->drawBox((origin_x + offset) + (seqXStep * x),
+                                   (origin_y + offset) + (seqYStep * y) + (odd == 4 ? 3 : 0),
+                                   3, odd == 5 ? 6 : 3);
                 }
                 if (even > 0)
                 {
-                    pU8g2->drawBox((origin_x + offset) + (seqXStep * x) + 3, 
-                                (origin_y + offset) + (seqYStep * y) + (even == 8 ? 3 : 0), 
-                                3, even == 10 ? 6 : 3);
+                    pU8g2->drawBox((origin_x + offset) + (seqXStep * x) + 3,
+                                   (origin_y + offset) + (seqYStep * y) + (even == 8 ? 3 : 0),
+                                   3, even == 10 ? 6 : 3);
                 }
             }
         }
 
-        pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 4);
-        
-        if (mode == 0)
-            pU8g2->drawBox(10, (origin_y + 1) + (seqYStep * (selector % SEQUENCER_TOTAL)), 4, 6);
-        else
-            pU8g2->drawStr(10, (origin_y + 1) + (seqYStep * (selector % SEQUENCER_TOTAL)), ">");
+        pU8g2->sendBuffer();
     }
 
-    void addSelectPattern(uint8_t seqIndex, int8_t value)
+    bool addSelectPattern(uint8_t seqIndex, int8_t value)
     {
-        patternSetting[seqIndex].currentPattern = constrain(patternSetting[seqIndex].currentPattern + value, 0, (BEATS_TOTAL - 1));
+        int16_t pattern = constrain(_patternSetting[seqIndex].currentPattern + value, 0, (BEATS_TOTAL - 1));
+        bool result = false;
+        if (_patternSetting[seqIndex].currentPattern != pattern)
+        {
+            result = true;
+        }
+
+        _patternSetting[seqIndex].currentPattern = pattern;
+
+        return result;
     }
 
     uint8_t getBeat(uint8_t seqIndex, uint8_t step)
     {
-        return beats[patternSetting[seqIndex].currentPattern][step & (STEP_MAX - 1)];
+        return beats[_patternSetting[seqIndex].currentPattern][step & (STEP_MAX - 1)];
     }
 
-    void setPattern(uint8_t seqIndex, uint8_t value) { patternSetting[seqIndex].currentPattern = value; }
-    void setPatternName(uint8_t seqIndex, const char* value)
+    void setPattern(uint8_t seqIndex, uint8_t value)
     {
-        strncpy(patternSetting[seqIndex].disp_name, value, 2);
+        _patternSetting[seqIndex].currentPattern = value;
+    }
+
+    void setPatternName(uint8_t seqIndex, const char *value)
+    {
+        strncpy(_patternSetting[seqIndex].disp_name, value, 2);
     }
 
 private:
-    PatternSetting patternSetting[SEQUENCER_TOTAL];
+    PatternSetting _patternSetting[SEQUENCER_TOTAL];
+    int8_t _lastSelector;
 };

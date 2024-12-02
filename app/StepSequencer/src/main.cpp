@@ -81,7 +81,7 @@ static const char shSources[][5] = {"INT", "EXT"};
 
 SettingItem16 commonSettings[] =
 {
-    SettingItem16(0, 2, 1, &syncMode, "SYNC MODE: %s", syncModes, 3),
+    SettingItem16(0, 2, 1, &syncMode, "SYNC MODE: %s", syncModes, 2),
     SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
     SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
     SettingItem16(0, 3, 1, &swing, "SWING: %d", NULL, 0),
@@ -129,7 +129,7 @@ void initOLED()
     u8g2.begin();
     u8g2.setContrast(40);
     u8g2.setFontPosTop();
-    // u8g2.setDrawColor(2);
+    u8g2.setDrawColor(2);
 }
 
 void dispOLED()
@@ -145,6 +145,7 @@ void dispOLED()
     if (requiresUpdate)
         u8g2.clearBuffer();
 
+    u8g2.setDrawColor(2);
     u8g2.setFont(u8g2_font_7x14B_tf);
     switch (menuIndex)
     {
@@ -175,6 +176,7 @@ void dispOLED()
         u8g2.drawStr(0, 0, "EDIT ACC : _ or *");
         break;
     case 8:
+        u8g2.setDrawColor(1);
         euclidDisp.drawCircle(&u8g2, euclid.getStepSize(), euclid.getCurrent(), euclid.getSteps());
         euclidMenuControl.draw(&u8g2, encMode, false, true);
         u8g2.sendBuffer();

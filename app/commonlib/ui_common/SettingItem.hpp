@@ -162,22 +162,26 @@ public:
         return _pSection[_sectionIndex].pItemList[_itemIndex].add(value);
     }
 
-    void draw(U8G2 *pU8g2, bool encMode)
+    void draw(U8G2 *pU8g2, bool encMode, bool titleHalfDisp = false, bool itemHalfDisp = false)
     {
         drawSetting(pU8g2, _pSection[_sectionIndex].title, 
                             _pSection[_sectionIndex].pItemList, _itemIndex, 
-                            _pSection[_sectionIndex].itemCount, encMode);
+                            _pSection[_sectionIndex].itemCount, encMode,
+                            titleHalfDisp, itemHalfDisp);
     }
 
 private:
     void drawSetting(U8G2 *pU8g2, const char *title, SettingItem<vs> *pSettingItems, 
-        uint8_t itemIndex, uint8_t itemCount, uint8_t selector = -1)
+        uint8_t itemIndex, uint8_t itemCount, uint8_t selector,
+        bool titleHalfDisp, bool itemHalfDisp)
     {
+        int titleStartX = titleHalfDisp ? 64 : 0;
+        int itemStartX = itemHalfDisp ? 64 : 0;
         static uint8_t drawStrYPos[3] = { 16, 32, 48 };
         static char disp_buf[3][32] = {0};
         pU8g2->setFont(u8g2_font_profont22_tf);
         sprintf(disp_buf[0], title);
-        pU8g2->drawStr(0, 0, disp_buf[0]);
+        pU8g2->drawStr(titleStartX, 0, disp_buf[0]);
 
         pU8g2->setFont(u8g2_font_7x14B_tf);
         static uint8_t menuSlider = 0;
@@ -195,16 +199,16 @@ private:
 
             bool sel = menuSlider == i ? true : false;
             pSettingItems[itemIndex - menuSlider + i].updateDispStrings(disp_buf[i]);
-            pU8g2->drawStr(8, drawStrYPos[i], disp_buf[i]);
+            pU8g2->drawStr(itemStartX + 8, drawStrYPos[i], disp_buf[i]);
             if (sel)
             {
                 if (selector == 1)
                 {
-                    pU8g2->drawHLine(7, 28 + (16 * i), 120);
+                    pU8g2->drawHLine(itemStartX + 7, 28 + (16 * i), 120 - itemStartX);
                 }
                 else
                 {
-                    pU8g2->drawBox(0, 17 + (16 * i), 6, 10);
+                    pU8g2->drawBox(itemStartX, 17 + (16 * i), 6, 10);
                 }
             }
         }
@@ -212,11 +216,11 @@ private:
 
         if (itemIndex < 1)
         {
-            pU8g2->drawHLine(0, 16, 127);
+            pU8g2->drawHLine(itemStartX, 16, 127 - itemStartX);
         }
         if (itemIndex == itemCount - 1)
         {
-            pU8g2->drawHLine(0, 63, 127);
+            pU8g2->drawHLine(itemStartX, 63, 127 - itemStartX);
         }
     }
 

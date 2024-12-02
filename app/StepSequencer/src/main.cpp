@@ -12,6 +12,7 @@
 #include "../../commonlib/common/SmoothAnalogRead.hpp"
 #include "../../commonlib/common/RotaryEncoder.hpp"
 #include "../../commonlib/ui_common/SettingItem.hpp"
+#include "../../commonlib/ui_common/EuclideanDisp.hpp"
 #include "../../commonlib/common/Euclidean.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
 #include "../../commonlib/common/pwm_wrapper.h"
@@ -71,6 +72,7 @@ static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
 static PollingTimeEvent updateOLED;
+static EuclideanDisp euclidDisp;
 
 static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
 static const char syncModes[][5] = {"INT", "EXT"};
@@ -97,33 +99,37 @@ SettingItem16 sequenceSettings[] =
 
 SettingItem16 euclidSettings[] =
 {
-    SettingItem16(0, 16, 1, &euclidOnsets, "ONSETS: %d", NULL, 0),
-    SettingItem16(1, 16, 1, &euclidStepSize, "STEP: %d", NULL, 0),
+    SettingItem16(0, 16, 1, &euclidOnsets, " ON:%2d", NULL, 0),
+    SettingItem16(1, 16, 1, &euclidStepSize, "STP:%2d", NULL, 0),
 };
 
 SettingItem16 shettings[] =
 {
-    SettingItem16(0, 1, 1, &shTrigger, "TIGGER: %s", shTriggers, 2),
-    SettingItem16(0, 1, 1, &shSource, "SOURCE: %s", shSources, 2),
-    SettingItem16(1, 5, 1, &shIntOctMax, "INT OCT: %d", NULL, 0),
-    SettingItem16(1, 32, 1, &shIntSpeed, "INT SPEED: %d", NULL, 0),
+    SettingItem16(0, 1, 1, &shTrigger, "TRG:%s", shTriggers, 2),
+    SettingItem16(0, 1, 1, &shSource, "SRC:%s", shSources, 2),
+    SettingItem16(1, 5, 1, &shIntOctMax, "OCT:%2d", NULL, 0),
+    SettingItem16(1, 32, 1, &shIntSpeed, "SPD:%2d", NULL, 0),
 };
 
 static MenuSection16 menu[] = {
     {"COMMON", commonSettings, sizeof(commonSettings) / sizeof(commonSettings[0])},
     {"PATTERNSEQ", sequenceSettings, sizeof(sequenceSettings) / sizeof(sequenceSettings[0])},
+};
+
+static MenuSection16 menu2[] = {
     {"EUCLIDTRIG", euclidSettings, sizeof(euclidSettings) / sizeof(euclidSettings[0])},
     {"SAMPL&HOLD", shettings, sizeof(shettings) / sizeof(shettings[0])}
 };
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
+static MenuControl16 euclidMenuControl(menu2, sizeof(menu2) / sizeof(menu2[0]));
 
 void initOLED()
 {
     u8g2.begin();
     u8g2.setContrast(40);
     u8g2.setFontPosTop();
-    u8g2.setDrawColor(2);
+    // u8g2.setDrawColor(2);
 }
 
 void dispOLED()
@@ -168,6 +174,11 @@ void dispOLED()
     case 7:
         u8g2.drawStr(0, 0, "EDIT ACC : _ or *");
         break;
+    case 8:
+        euclidDisp.drawCircle(&u8g2, euclid.getStepSize(), euclid.getCurrent(), euclid.getSteps());
+        euclidMenuControl.draw(&u8g2, encMode, false, true);
+        u8g2.sendBuffer();
+        return;
     default:
         menuControl.draw(&u8g2, encMode);
         u8g2.sendBuffer();
@@ -258,6 +269,8 @@ void setup()
 
     euclidTrig.init(OUT4);
     euclid.generate(euclidOnsets, euclidStepSize);
+    euclidDisp.init(28, 42, 21);
+    euclidDisp.generateCircle(euclidStepSize);
 
     intLFO.init(SAMPLE_FREQ);
     intLFO.setWave(Oscillator::Wave::TRI);
@@ -323,7 +336,21 @@ void loop1()
     }
     else if (encMode == 0)
     {
-        if (menuIndex >= MENU_MAX - 1)
+        if (menuIndex == 8)
+        {
+            requiresUpdate |= euclidMenuControl.select(encValue);
+            if (euclidMenuControl.isUnder()) 
+            {
+                menuIndex--;
+                requiresUpdate = true;
+            }
+            else if (euclidMenuControl.isOver())
+            {
+                menuIndex++;
+                requiresUpdate = true;
+            }
+        }
+        else if (menuIndex == 9)
         {
             requiresUpdate |= menuControl.select(encValue);
             if (menuControl.isUnder()) 
@@ -333,7 +360,7 @@ void loop1()
             }
             // if (menuControl.isOver())
             // {
-            //     menuIndex = 0;
+            //     menuIndex++;
             //     requiresUpdate = true;
             // }
         }
@@ -365,7 +392,7 @@ void loop1()
         }
     }
 
-    if (btn1 == 1)
+    if (menuIndex < 8 && btn1 == 1)
     {
         sspc.reset();
     }
@@ -406,6 +433,19 @@ void loop1()
             sspc.toggleAcc();
         }
         break;
+    case 8:
+        if (btn1 == 1)
+        {
+            euclid.resetCurrent();
+        }
+        requiresUpdate |= euclidMenuControl.addValue2CurrentSetting(encValue);
+        euclidOnsets = constrain(euclidOnsets, 0, euclidStepSize);
+        euclidStepSize = constrain(euclidStepSize, euclidOnsets, euclid.EUCLID_MAX_STEPS);
+        if (euclid.generate(euclidOnsets, euclidStepSize))
+        {
+            euclidDisp.generateCircle(euclid.getStepSize());
+        }
+        break;
     default:
         requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
         sspc.setClockMode((StepSeqPlayControl::CLOCK)syncMode);
@@ -418,10 +458,6 @@ void loop1()
         sspc.setBPM(bpm, 48);
         sspc.setScale(scale);
         sspc.setPPQ(ppq);
-
-        euclidOnsets = constrain(euclidOnsets, 0, euclidStepSize);
-        euclidStepSize = constrain(euclidStepSize, euclidOnsets, euclid.EUCLID_MAX_STEPS);
-        euclid.generate(euclidOnsets, euclidStepSize);
         break;
     }
 

@@ -435,14 +435,14 @@ void generateSequenceNormalRand(StepSeqModel *pssm, int8_t octUnder, int8_t octU
     }
 }
 
-void resetSequence(StepSeqModel *pssm)
+void resetSequence(StepSeqModel *pssm, int8_t gateInitial)
 {
     Serial.println("resetSequence\n");
     byte geteSelect = random(MAX_GATE_TIMINGS);
 
     for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
     {
-        pssm->setGate(i, StepSeqModel::Gate::H);
+        pssm->setGate(i, (StepSeqModel::Gate)gateInitial);
         pssm->setOctave(i, 1);
         pssm->setKey(i, 0);
         pssm->setAcc(i, 0);

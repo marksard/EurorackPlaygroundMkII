@@ -460,7 +460,7 @@ public:
 
     void resetAllSequence()
     {
-        ::resetSequence(&_ssm);
+        ::resetSequence(&_ssm, _gateInitial.get());
     }
 
     void generateSequence(bool resetSyncCount = true)

@@ -326,7 +326,7 @@ void loop()
     // Serial.println();
     // }
 
-    sleep_us(25);
+    sleep_us(50);
     // sleep_ms(1);
 }
 

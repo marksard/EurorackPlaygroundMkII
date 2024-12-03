@@ -298,6 +298,8 @@ public:
     int8_t getGateMax() { return _gateMax.get(); }
     int8_t getGateInitial() { return _gateInitial.get(); }
 
+    int8_t getGatePos() { return _ssm.gateStep.pos.get(); }
+
     int getStepDulation()
     {
         int length = _pTrigger->getMills() * _seqReadyCountMax;
@@ -469,6 +471,12 @@ public:
         // _ssm.randomSeed(micros());
         ::generateSequence(&_ssm, _octUnder.get(), _octUpper.get(),
                            _gateMin.get(), _gateMax.get(), _gateInitial.get());
+
+        if (resetSyncCount == false)
+        {
+            return;
+        }
+        
         _ssm.keyStep.setMode(Step::Mode::Forward);
         _ssm.gateStep.setMode(Step::Mode::Forward);
         _ssm.keyStep.resetPlayStep();

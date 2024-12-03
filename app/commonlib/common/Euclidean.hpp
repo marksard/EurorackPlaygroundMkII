@@ -20,6 +20,7 @@
 
 #include <Arduino.h>
 
+
 class Euclidean
 {
 public:
@@ -33,6 +34,8 @@ public:
         _onsets = 0;
         _stepSize = 0;
         _lockSteps = false;
+        _startPos = 0;
+        _stepsBin = 0;
         // memset(_steps, 0, sizeof(_steps));
         setArrayAll(_steps, 0, EUCLID_MAX_STEPS);
     }
@@ -40,9 +43,8 @@ public:
     uint16_t getNext()
     {
         if (_lockSteps)
-            return _steps[_currentStep];
+            return _steps[getCurrent()];
 
-        uint16_t result = _steps[_currentStep];
         // Serial.print(result);
         // Serial.print(",");
         // Serial.print(_currentStep);
@@ -53,29 +55,37 @@ public:
             _currentStep = 0;
         }
 
+        uint16_t result = _steps[_currentStep];
+
         return result;
     }
 
-    void resetCurrent() { _currentStep = 0; }
-    uint8_t getCurrent() { return _currentStep; }
+    void resetCurrent() { _currentStep = -1; }
+    uint8_t getCurrent() { return max(0, _currentStep); }
     uint8_t getOnsets() { return _onsets; }
     uint8_t getStepSize() { return _stepSize; }
-    uint8_t getCurrentTrigger() { return _steps[_currentStep]; }
     const uint16_t *getSteps() { return _steps; }
 
-    bool updateEncWhenGenerate(int8_t enc0, int8_t enc1)
+    void setStartPos(int8_t value)
     {
-        uint8_t onsets = constrain(_onsets + enc0, 0, _stepSize);
-        uint8_t stepSize = constrain(_stepSize + enc1, _onsets, EUCLID_MAX_STEPS);
-        if (_onsets == onsets && _stepSize == stepSize)
+        int8_t delta = value - _startPos;
+        if (delta != 0)
         {
-            return false;
+            _startPos = constrainCyclic<int8_t>(_startPos + delta, 0, (int8_t)_stepSize - 1);
+            bit2ArrayValues(_stepsBin, _steps, _stepSize, _startPos);
         }
-        _onsets = onsets;
-        _stepSize = stepSize;
-        generate();
-        return true;
-    }
+    }   
+
+    void addStartPos(int8_t value)
+    {
+        if (value != 0)
+        {
+            _startPos = constrainCyclic<int8_t>(_startPos + value, 0, (int8_t)_stepSize - 1);
+            bit2ArrayValues(_stepsBin, _steps, _stepSize, _startPos);
+        }
+    }   
+
+    uint8_t getStartPos() { return _startPos; }
 
     // ユークリッドリズムを生成
     bool generate(uint16_t onsets, uint16_t stepSize)
@@ -84,6 +94,7 @@ public:
         {
             return false;
         }
+
         _onsets = onsets;
         _stepSize = stepSize;
         generate();
@@ -109,18 +120,22 @@ public:
         }
 
         uint16_t res = concatBits(_steps, result_len);
-        bit2ArrayValues(res, _steps, _stepSize);
+        _stepsBin = res;
+        bit2ArrayValues(_stepsBin, _steps, _stepSize, _startPos);
         _lockSteps = false;
-
-        // for (int8_t i = 0; i < _stepSize; ++i)
-        // {
-        //     Serial.print(_steps[i]);
-        //     Serial.print(",");
-        // }
-        // Serial.println();
     }
 
 protected:
+    template <typename vs = int8_t>
+    vs constrainCyclic(vs value, vs min, vs max)
+    {
+        if (value > max)
+            return min;
+        if (value < min)
+            return max;
+        return value;
+    }
+
     // 立っている最上位ビットを見つける
     uint16_t foundHighBitIndex(uint16_t value)
     {
@@ -157,13 +172,24 @@ protected:
     }
 
     // bitをarrayに分離
-    void bit2ArrayValues(uint16_t binary, uint16_t array[], uint16_t size)
+    void bit2ArrayValues(uint16_t binary, uint16_t array[], uint16_t size, uint16_t startPos)
     {
-        for (int8_t i = size - 1; i >= 0; --i)
+        // bit15がstep0、bit0がstep15。逆順で入っているっことに注意
+        // 開始位置より指定サイズまで順番にarrayに格納する
+        uint8_t pos = size - startPos;
+        for (int8_t i = 0; i < size; ++i)
         {
-            array[i] = binary & 1;
-            binary >>= 1;
+            pos = constrainCyclic<int8_t>(pos, 0, size - 1);
+            array[i] = (binary >> (size - 1 - pos)) & 1;
+            pos++;
         }
+
+        // for (int8_t i = 0; i < _stepSize; ++i)
+        // {
+        //     Serial.print(_steps[i]);
+        //     Serial.print(",");
+        // }
+        // Serial.println();
     }
 
     // 再起でユークリディアンな組み合わせにしてく
@@ -213,8 +239,10 @@ protected:
 protected:
     bool _lockSteps;
     int8_t _recursive_max;
-    uint8_t _currentStep;
+    int16_t _currentStep;
     uint8_t _onsets;
     uint8_t _stepSize;
+    uint8_t _startPos;
+    uint16_t _stepsBin;
     uint16_t _steps[EUCLID_MAX_STEPS];
 };

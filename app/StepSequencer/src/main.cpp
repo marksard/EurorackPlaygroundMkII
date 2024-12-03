@@ -14,6 +14,7 @@
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/ui_common/EuclideanDisp.hpp"
 #include "../../commonlib/common/Euclidean.hpp"
+#include "../../commonlib/common/EdgeChecker.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
 #include "../../commonlib/common/pwm_wrapper.h"
 #include "StepSeqModel.hpp"
@@ -35,7 +36,8 @@ static U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NON
 static SmoothAnalogRead pot;
 static RotaryEncoder enc;
 static Button buttons[3];
-static SmoothAnalogRead vOct;
+// static SmoothAnalogRead vOct;
+static EdgeChecker vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 
@@ -48,16 +50,19 @@ static int16_t gateMax;
 static int16_t gateInitial;
 
 // common
-static int16_t syncMode = 0;
+static int16_t seqSyncMode = 0;
 static int16_t bpm;
 static int16_t scale;
 static int16_t swing = 1;
 static int16_t ppq;
 
-// quantizer
+// euclid
 static Euclidean euclid;
+static EuclideanDisp euclidDisp;
 static TriggerOut euclidTrig;
 static int16_t quantizeOut = 0;
+static int16_t euclidPos = 0;
+static int16_t euclidSyncDiv = 0;
 static int16_t euclidOnsets = 4;
 static int16_t euclidStepSize = 16;
 
@@ -74,16 +79,18 @@ static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
 static PollingTimeEvent updateOLED;
-static EuclideanDisp euclidDisp;
 
 static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
-static const char syncModes[][5] = {"INT", "EXT"};
+static const char seqSyncModes[][5] = {"INT", "GATE"};
 static const char shTriggers[][5] = {"CLK", "EUC"};
-static const char shSources[][5] = {"INT", "EXT"};
+static const char shSources[][5] = {"INT", "CV1"};
+
+static const char euclidSyncDivsStr[][5] = {"1", "2", "3", "4", "8", "16"};
+static const char euclidSyncDivs[] = {1, 2, 3, 4, 8, 16};
 
 SettingItem16 commonSettings[] =
 {
-    SettingItem16(0, 2, 1, &syncMode, "SYNC MODE: %s", syncModes, 2),
+    SettingItem16(0, 2, 1, &seqSyncMode, "SYNC MODE: %s", seqSyncModes, 2),
     SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
     SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
     SettingItem16(0, 3, 1, &swing, "SWING: %d", NULL, 0),
@@ -101,6 +108,8 @@ SettingItem16 sequenceSettings[] =
 
 SettingItem16 euclidSettings[] =
 {
+    SettingItem16(0, 5, 1, &euclidSyncDiv, "SYN:/%s", euclidSyncDivsStr, 6),
+    SettingItem16(-16, 16, 1, &euclidPos, "POS:%d", NULL, 0),
     SettingItem16(0, 16, 1, &euclidOnsets, " ON:%2d", NULL, 0),
     SettingItem16(1, 16, 1, &euclidStepSize, "STP:%2d", NULL, 0),
 };
@@ -179,7 +188,7 @@ void dispOLED()
         break;
     case 8:
         u8g2.setDrawColor(1);
-        euclidDisp.drawCircle(&u8g2, euclid.getStepSize(), euclid.getCurrent(), euclid.getSteps());
+        euclidDisp.drawCircle(&u8g2, euclid.getStepSize(), euclid.getStartPos(), euclid.getCurrent(), euclid.getSteps());
         euclidMenuControl.draw(&u8g2, encMode, false, true);
         u8g2.sendBuffer();
         return;
@@ -213,12 +222,19 @@ void interruptPWM()
     // quantizer
     if (ready)
     {
-        int8_t trig = euclid.getNext();
-        euclidTrig.update(trig);
-        if ((shTrigger == 0 && ready) ||
-            (shTrigger == 1 && trig))
+        if (sspc.getGatePos() % euclidSyncDivs[euclidSyncDiv] == 0)
         {
-            pwm_set_gpio_level(OUT6, quantizeOut);
+            int8_t trig = euclid.getNext();
+            euclidTrig.update(trig);
+            if ((shTrigger == 0 && ready) ||
+                (shTrigger == 1 && trig))
+            {
+                pwm_set_gpio_level(OUT6, quantizeOut);
+            }
+        }
+        else
+        {
+            euclidTrig.update(LOW);
         }
     }
     else
@@ -286,7 +302,7 @@ void loop()
 {
     pot.analogReadDropLow4bit();
     enc.getDirection();
-    uint16_t voct = vOct.analogReadDirect();
+    // uint16_t voct = vOct.analogReadDirect();
     int16_t cv1Value = cv1.analogReadDirect();
     uint16_t cv2Value = cv2.analogReadDirect();
 
@@ -331,6 +347,12 @@ void loop1()
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
+    bool voct = vOct.isEdgeHigh();
+
+    if (voct)
+    {
+        sspc.requestGenerateSequence();
+    }
 
     // requiresUpdate |= updateMenuIndex(btn0, btn1);
     if (btn2 == 2)
@@ -445,6 +467,8 @@ void loop1()
         requiresUpdate |= euclidMenuControl.addValue2CurrentSetting(encValue);
         euclidOnsets = constrain(euclidOnsets, 0, euclidStepSize);
         euclidStepSize = constrain(euclidStepSize, euclidOnsets, euclid.EUCLID_MAX_STEPS);
+        euclid.setStartPos(euclidPos);
+        euclidPos = euclid.getStartPos();
         if (euclid.generate(euclidOnsets, euclidStepSize))
         {
             euclidDisp.generateCircle(euclid.getStepSize());
@@ -452,7 +476,7 @@ void loop1()
         break;
     default:
         requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
-        sspc.setClockMode((StepSeqPlayControl::CLOCK)syncMode);
+        sspc.setClockMode((StepSeqPlayControl::CLOCK)seqSyncMode);
         sspc.setOctUnder(octUnder);
         sspc.setOctUpper(octUpper);
         sspc.setGateMin(gateMin);

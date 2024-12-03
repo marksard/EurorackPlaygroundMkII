@@ -41,30 +41,32 @@ static SmoothAnalogRead cv2;
 
 // step seq
 static StepSeqPlayControl sspc(&u8g2);
-static int16_t syncMode = 0;
 static int16_t octUnder;
 static int16_t octUpper;
 static int16_t gateMin;
 static int16_t gateMax;
 static int16_t gateInitial;
+
+// common
+static int16_t syncMode = 0;
 static int16_t bpm;
 static int16_t scale;
+static int16_t swing = 1;
 static int16_t ppq;
+
+// quantizer
+static Euclidean euclid;
+static TriggerOut euclidTrig;
+static int16_t quantizeOut = 0;
+static int16_t euclidOnsets = 4;
+static int16_t euclidStepSize = 16;
+
+// sample and hold
+static Oscillator intLFO;
+static int16_t shTrigger = 1;
 static int16_t shSource = 0;
 static int16_t shIntOctMax = 3;
 static int16_t shIntSpeed = 20;
-
-// quantizer
-const int16_t halfReso = (ADC_RESO >> 1);
-// static float voltPerTone = 4095.0 / 12.0 / 5.0;
-static int16_t quantizeOut = 0;
-static Euclidean euclid;
-static TriggerOut euclidTrig;
-static Oscillator intLFO;
-static int16_t euclidOnsets = 4;
-static int16_t euclidStepSize = 16;
-static int16_t shTrigger = 1;
-static int16_t swing = 1;
 
 // 画面周り
 #define MENU_MAX (8+1)
@@ -302,7 +304,7 @@ void loop()
     }
     int8_t oct = cv / 7;
     int8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
-    quantizeOut = ((oct * 12) + semi) * voltPerTone;
+    quantizeOut = ((oct * 12) + semi) * sspc.VoltPerTone;
 
     int length = sspc.getStepDulation();
     euclidTrig.setDuration(length >> 1);

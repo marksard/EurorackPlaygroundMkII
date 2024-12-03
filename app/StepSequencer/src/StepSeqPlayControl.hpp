@@ -15,8 +15,6 @@
 #include "StepSeqModel.hpp"
 #include "StepSeqView.hpp"
 
-static float voltPerTone = 4095.0 / 12.0 / 5.0;
-
 class StepSeqPlayControl
 {
 public:
@@ -26,6 +24,8 @@ public:
         EXT,
         IGNORE,
     };
+
+    const float VoltPerTone = 4095.0 / 12.0 / 5.0;
 
 public:
     StepSeqPlayControl(U8G2 *pU8g2)
@@ -404,7 +404,7 @@ public:
             // Serial.print("--> play");
             // Serial.print(_ssm.getPlayNote());
             // Serial.println();
-            uint16_t voct = _ssm.getPlayNote() * voltPerTone;
+            uint16_t voct = _ssm.getPlayNote() * VoltPerTone;
             setVOct(voct);
             updateGateOut(true);
             result = 1;

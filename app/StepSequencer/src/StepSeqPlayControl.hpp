@@ -45,7 +45,6 @@ public:
         _clock = CLOCK::IGNORE;
         _seqReadyCount = 0;
         _seqReadyCountMax = 0;
-        _ppq = 4;
         _requestGenerateSequence = false;
         _requestResetAllSequence = false;
 
@@ -156,17 +155,6 @@ public:
     uint8_t getBPM() { return _pTrigger->getBPM(); }
     int8_t getScale() { return _ssm._scaleIndex.get(); }
     uint8_t getScaleKey(uint8_t scale, uint8_t key) { return _ssm.getScaleKey(scale, key); }
-
-    void addPPQ(int8_t value)
-    {
-        if (value == 0)
-            return;
-        uint8_t ppq = constrain(_ppq + value, 1, 4);
-        _ppq = ppq;
-    }
-
-    void setPPQ(uint8_t value) { _ppq = value; }
-    uint8_t getPPQ() { return _ppq; }
 
     void setSettingPos(int8_t value)
     {
@@ -509,6 +497,4 @@ private:
     TriggerOut _gateOut;
     TriggerOut _accOut;
     TriggerOut _syncOut;
-
-    uint8_t _ppq;
 };

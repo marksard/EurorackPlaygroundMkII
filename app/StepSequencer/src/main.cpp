@@ -54,7 +54,6 @@ static int16_t seqSyncMode = 0;
 static int16_t bpm;
 static int16_t scale;
 static int16_t swing = 1;
-static int16_t ppq;
 
 // euclid
 static Euclidean euclid;
@@ -94,7 +93,6 @@ SettingItem16 commonSettings[] =
     SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
     SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
     SettingItem16(0, 3, 1, &swing, "SWING: %d", NULL, 0),
-    SettingItem16(0, 4, 1, &ppq, "PPQ: %d", NULL, 0),
 };
 
 SettingItem16 sequenceSettings[] =
@@ -108,7 +106,7 @@ SettingItem16 sequenceSettings[] =
 
 SettingItem16 euclidSettings[] =
 {
-    SettingItem16(0, 5, 1, &euclidSyncDiv, "SYN:/%s", euclidSyncDivsStr, 6),
+    SettingItem16(0, 5, 1, &euclidSyncDiv, "DIV:/%s", euclidSyncDivsStr, 6),
     SettingItem16(-16, 16, 1, &euclidPos, "POS:%d", NULL, 0),
     SettingItem16(0, 16, 1, &euclidOnsets, " ON:%2d", NULL, 0),
     SettingItem16(1, 16, 1, &euclidStepSize, "STP:%2d", NULL, 0),
@@ -119,7 +117,7 @@ SettingItem16 shettings[] =
     SettingItem16(0, 1, 1, &shTrigger, "TRG:%s", shTriggers, 2),
     SettingItem16(0, 1, 1, &shSource, "SRC:%s", shSources, 2),
     SettingItem16(1, 5, 1, &shIntOctMax, "OCT:%2d", NULL, 0),
-    SettingItem16(1, 32, 1, &shIntSpeed, "SPD:%2d", NULL, 0),
+    SettingItem16(1, 99, 1, &shIntSpeed, "SPD:%2d", NULL, 0),
 };
 
 static MenuSection16 menu[] = {
@@ -219,7 +217,7 @@ void interruptPWM()
 
     int8_t ready = sspc.updateProcedure();
 
-    // quantizer
+    // euclid
     if (ready)
     {
         if (sspc.getGatePos() % euclidSyncDivs[euclidSyncDiv] == 0)
@@ -279,7 +277,6 @@ void setup()
     sspc.start();
     bpm = sspc.getBPM();
     scale = sspc.getScale();
-    ppq = sspc.getPPQ();
     octUnder = sspc.getOctUnder();
     octUpper = sspc.getOctUpper();
     gateMin = sspc.getGateMin();
@@ -485,7 +482,6 @@ void loop1()
         sspc.setSwingIndex(swing);
         sspc.setBPM(bpm, 48);
         sspc.setScale(scale);
-        sspc.setPPQ(ppq);
         break;
     }
 

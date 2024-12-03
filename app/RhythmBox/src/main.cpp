@@ -46,7 +46,7 @@ int pwmOuts[SEQUENCER_TOTAL] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 bool isSDFill = false;
 
 #define CPU_CLOCK 133000000.0
-#define INTR_PWM_RESO 512
+#define INTR_PWM_RESO 256
 #define PWM_RESO 2048         // 11bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
@@ -134,7 +134,6 @@ static MenuControlF menuControl(menu, sizeof(menu) / sizeof(menu[0]));
 
 static PatternSeq seq;
 static EdgeChecker clockEdge;
-// static uint8_t clockGate = 0;
 static bool clockAlive = false;
 static int16_t clockCount = 0;
 // 1小節4打の16ステップを4つ=16小節
@@ -236,8 +235,6 @@ void setup()
 void loop()
 {
     bool acc = encMode && menuIndex >= SEQUENCER_TOTAL ? true : false;
-    
-    pot.analogReadDirectFast();
     enc.getDirection(acc);
     uint16_t voct = vOct.analogReadDirectFast();
     int16_t cv1Value = cv1.analogReadDirectFast();
@@ -247,7 +244,6 @@ void loop()
     int8_t triggerCV2 = cv2Value > 2048;
 
     bool trig = clockEdge.isEdgeHigh();
-    // clockGate = clockEdge.getValue();
 
     if (trig)
     {
@@ -302,10 +298,6 @@ void loop()
         isSDFill = false;
     }
 
-    // カウンタリセット時点灯
-    gpio_put(LED1, (clockCount & (STEP_MAX - 1)) == 0 ? HIGH : LOW);
-    gpio_put(LED2, clockCount == 0 ? HIGH : LOW);
-
     if (!clockEdge.isAlive())
     {
         clockCount = 0;
@@ -326,20 +318,19 @@ void loop()
     // Serial.println();
     // }
 
-    sleep_us(50);
-    // sleep_ms(1);
+    sleep_us(100);
 }
 
 void setup1()
 {
     initOLED();
-    updateOLED.setMills(60);
+    updateOLED.setMills(60); // = 60sec / (250bpm * 4ppq)
     updateOLED.start();
 }
 
 void loop1()
 {
-    uint16_t potValue = pot.getValue();
+    uint16_t potValue = pot.analogRead();
     int8_t encValue = enc.getValue();
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn2 = buttons[2].getState();
@@ -392,7 +383,7 @@ void loop1()
         requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
     }
 
-    int8_t muteIndex = map(potValue, 0, 4095, 0, SEQUENCER_TOTAL);
+    int8_t muteIndex = map(potValue, 0, 3800, 0, SEQUENCER_TOTAL);
     int8_t mutes[] = {-1, 0, 2, 3, 4, 1, 5};
     for (int i = 0; i < 7; ++i)
     {
@@ -404,6 +395,7 @@ void loop1()
             {
                 continue;
             }
+
             pKit[mute]->setMute(true);
         }
         else
@@ -418,8 +410,11 @@ void loop1()
         return;
     }
 
-    dispOLED();
+    // カウンタリセット時点灯
+    gpio_put(LED1, (clockCount & (STEP_MAX - 1)) == 0 ? HIGH : LOW);
+    gpio_put(LED2, clockCount == 0 ? HIGH : LOW);
 
+    dispOLED();
     // sleep_ms(1);
 
     // static uint8_t dispCount = 0;

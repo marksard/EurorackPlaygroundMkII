@@ -80,6 +80,7 @@ class PatternSeq
 {
 public:
     PatternSeq()
+    : _prevCurrentStep(15)
     {
     }
 
@@ -90,30 +91,23 @@ public:
         uint8_t seqXStep = 7;
         uint8_t seqYStep = 8;
 
+        // ステップインジケータ部分のみ更新
         if (requiresUpdate == false)
         {
             pU8g2->setDrawColor(0);
-            pU8g2->drawBox(origin_x, origin_y - 2, 128, 4);
+            pU8g2->drawBox(origin_x + (seqXStep * _prevCurrentStep), origin_y - 2, seqXStep, 3);
             pU8g2->setDrawColor(2);
-            pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 4);
-            pU8g2->sendBuffer();
-            return;
-
-            if (_lastSelector != selector)
-            {
-                requiresUpdate = true;
-            }
-            _lastSelector = selector;
-        }
-
-        if (requiresUpdate == false)
-        {
+            pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 3);
+            pU8g2->updateDisplayArea(0, 1, 16, 1);
+            _prevCurrentStep = currentStep;
             return;
         }
+
+        _prevCurrentStep = currentStep;
 
         pU8g2->clearBuffer();
 
-        pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 4);
+        pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 3);
 
         if (mode == 0)
             pU8g2->drawBox(10, (origin_y + 1) + (seqYStep * (selector % SEQUENCER_TOTAL)), 4, 6);
@@ -127,10 +121,8 @@ public:
         for (int8_t i = 0; i < SEQUENCER_TOTAL + 1; ++i)
         {
             pU8g2->drawStr(0, origin_y + (seqYStep * i), _patternSetting[i].disp_name);
-            // pU8g2->drawHLine(origin_x, origin_y + (seqYStep * i), 127);
         }
 
-        // for (int8_t i = 0; i < STEP_MAX + 1; ++i)
         for (int8_t i = 4; i < STEP_MAX; i += 4)
         {
             pU8g2->drawVLine(origin_x + (seqXStep * i), origin_y, 63);
@@ -194,5 +186,5 @@ public:
 
 private:
     PatternSetting _patternSetting[SEQUENCER_TOTAL];
-    int8_t _lastSelector;
+    int8_t _prevCurrentStep;
 };

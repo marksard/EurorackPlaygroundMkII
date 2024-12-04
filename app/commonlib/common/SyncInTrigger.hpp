@@ -14,10 +14,10 @@
 class SyncInTrigger : public TriggerInterface
 {
 public:
-    SyncInTrigger(byte pin)
+    SyncInTrigger(byte pin, ulong aliveTimeMillis = 2000)
         : SyncInTrigger()
     {
-        setPin(pin);
+        _edge.init(pin, aliveTimeMillis);
         _bpmReso = 4;
     }
 

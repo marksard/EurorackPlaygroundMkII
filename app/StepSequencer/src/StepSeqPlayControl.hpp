@@ -36,7 +36,7 @@ public:
         , _gateMin(StepSeqModel::Gate::_, StepSeqModel::Gate::Max, StepSeqModel::Gate::_, StepSeqModel::Gate::Max)
         , _gateMax(StepSeqModel::Gate::_, StepSeqModel::Gate::Max, StepSeqModel::Gate::_, StepSeqModel::Gate::Max)
         , _gateInitial(StepSeqModel::Gate::_, StepSeqModel::Gate::Max, StepSeqModel::Gate::_, StepSeqModel::Gate::Max)
-        , _syncIn(GATE)
+        , _syncIn(GATE, 4000)
         , _syncOut(OUT1)
         , _accOut(OUT2)
         , _gateOut(OUT3)
@@ -105,8 +105,8 @@ public:
         {
             if (_pTrigger != NULL)
             {
-                _pTrigger->setBPM(_pTrigger->getBPM(), _pTrigger->getBPMReso());
-                _seqReadyCountMax = _pTrigger->getBPMReso() / 4;
+                _polling.setBPM(_polling.getBPM(), _polling.getBPMReso());
+                _seqReadyCountMax = _polling.getBPMReso() / 4;
                 if (_pTrigger->isStart())
                 {
                     _polling.start();

@@ -21,7 +21,6 @@ public:
 
     void dispSteps(uint8_t keyStart, uint8_t keyEnd, uint8_t gateStart, uint8_t gateEnd, uint8_t *pOcts, uint8_t *pKeys, uint8_t *pGates, uint8_t *pAccs, int8_t gateLenAdder, int8_t octaveAddr)
     {
-        static char disp_item[StepSeqModel::Gate::Max] = {'-', 'S', 'H', 'L', 'G'};
         for (uint8_t i = 0; i < 16; ++i)
         {
             uint8_t x = pos2X(i);
@@ -34,7 +33,7 @@ public:
                          gateInv,
                          constrain(pOcts[i] + octaveAddr, 0, 5),
                          pKeys[i],
-                         disp_item[gate],
+                         StepSeqModel::GateDisp[gate][0],
                          pAccs[i] == 1 ? '*' : ' ');
         }
     }

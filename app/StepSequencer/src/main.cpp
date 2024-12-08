@@ -99,9 +99,9 @@ SettingItem16 sequenceSettings[] =
 {
     SettingItem16(-1, 4, 1, &octUnder, "OCT UNDER: %d", NULL, 0),
     SettingItem16(-1, 4, 1, &octUpper, "OCT UPPER: %d", NULL, 0),
-    SettingItem16(0, StepSeqModel::Gate::L, 1, &gateMin, "GATE MIN: %d", NULL, 0),
-    SettingItem16(1, StepSeqModel::Gate::Max, 1, &gateMax, "GATE MAX: %d", NULL, 0),
-    SettingItem16(0, StepSeqModel::Gate::L, 1, &gateInitial, "GATE INI: %d", NULL, 0),
+    SettingItem16(0, StepSeqModel::Gate::Max, 1, &gateMin, "GATE MIN: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
+    SettingItem16(1, StepSeqModel::Gate::Max, 1, &gateMax, "GATE MAX: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
+    SettingItem16(0, StepSeqModel::Gate::Max, 1, &gateInitial, "GATE INI: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
 };
 
 SettingItem16 euclidSettings[] =

@@ -227,6 +227,8 @@ public:
         G, // Glide
         Max,
     };
+    
+    static constexpr const char GateDisp[Gate::Max][5] = {"-", "S", "H", "L", "G"};
 
     const uint8_t GateDulation[Gate::Max] = {0, 25, 50, 75, 100};
 
@@ -389,8 +391,8 @@ void generateSequence(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8
     {
         // タイミングマップにランダムでタイミングをorして足す
         StepSeqModel::Gate gate = gateMap[geteSelect][i] == 1 ? 
-        (StepSeqModel::Gate)pssm->rand((StepSeqModel::Gate)gateMin, (StepSeqModel::Gate)gateMax) : 
-        (StepSeqModel::Gate)gateInitial;
+            (StepSeqModel::Gate)pssm->rand(gateMin, gateMax) : 
+            (StepSeqModel::Gate)(pssm->rand(2) ? pssm->getGate(i) : gateInitial);
         pssm->setGate(i, gate);
 
         // 変更前のメロディーラインをランダムに残して繋がりを持たせる
@@ -407,33 +409,33 @@ void generateSequence(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8
     }
 }
 
-void generateSequenceNormalRand(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
-{
-    Serial.println("generateSequence\n");
-    randomSeed(micros());
-    byte geteSelect = random(MAX_GATE_TIMINGS);
+// void generateSequenceNormalRand(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
+// {
+//     Serial.println("generateSequence\n");
+//     randomSeed(micros());
+//     byte geteSelect = random(MAX_GATE_TIMINGS);
 
-    for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
-    {
-        // タイミングマップにランダムでタイミングをorして足す
-        StepSeqModel::Gate gate = gateMap[geteSelect][i] == 1 ? 
-        (StepSeqModel::Gate)random((StepSeqModel::Gate)gateMin, (StepSeqModel::Gate)gateMax) : 
-        (StepSeqModel::Gate)gateInitial;
-        pssm->setGate(i, gate);
+//     for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
+//     {
+//         // タイミングマップにランダムでタイミングをorして足す
+//         StepSeqModel::Gate gate = gateMap[geteSelect][i] == 1 ? 
+//         (StepSeqModel::Gate)random((StepSeqModel::Gate)gateMin, (StepSeqModel::Gate)gateMax) : 
+//         (StepSeqModel::Gate)gateInitial;
+//         pssm->setGate(i, gate);
 
-        // 変更前のメロディーラインをランダムに残して繋がりを持たせる
-        if (random(2))
-        {
-            continue;
-        }
+//         // 変更前のメロディーラインをランダムに残して繋がりを持たせる
+//         if (random(2))
+//         {
+//             continue;
+//         }
 
-        // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
-        // 0 ~ 24 + スケール音
-        pssm->setOctave(i, 1 + (random(octUnder, octUpper)));
-        pssm->setKey(i, random(MAX_SCALE_KEY));
-        pssm->setAcc(i, gate != StepSeqModel::Gate::_ && random(0, 6) == 1 ? 1 : 0);
-    }
-}
+//         // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
+//         // 0 ~ 24 + スケール音
+//         pssm->setOctave(i, 1 + (random(octUnder, octUpper)));
+//         pssm->setKey(i, random(MAX_SCALE_KEY));
+//         pssm->setAcc(i, gate != StepSeqModel::Gate::_ && random(0, 6) == 1 ? 1 : 0);
+//     }
+// }
 
 void resetSequence(StepSeqModel *pssm, int8_t gateInitial)
 {

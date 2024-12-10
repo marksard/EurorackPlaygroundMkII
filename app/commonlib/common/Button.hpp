@@ -110,6 +110,8 @@ public:
         _holdTime = mills * 1000;
     }
 
+    uint8_t getValue() { return _lastResult; }
+
 protected:
     uint8_t _pin;
     uint8_t _pinState;

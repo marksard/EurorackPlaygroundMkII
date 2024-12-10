@@ -21,6 +21,7 @@
 #include "StepSeqView.hpp"
 #include "StepSeqPlayControl.hpp"
 #include "Oscillator.hpp"
+#include "EepromData.h"
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
@@ -41,36 +42,16 @@ static EdgeChecker vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 
-// step seq
+// ユーザー設定
+static UserConfig userConfig;
+static bool saveConfirm = false;
+
 static StepSeqPlayControl sspc(&u8g2);
-static int16_t octUnder;
-static int16_t octUpper;
-static int16_t gateMin;
-static int16_t gateMax;
-static int16_t gateInitial;
-
-// common
-static int16_t seqSyncMode = 0;
-static int16_t bpm;
-static int16_t scale;
-static int16_t swing = 1;
-
-// euclid
 static Euclidean euclid;
 static EuclideanDisp euclidDisp;
 static TriggerOut euclidTrig;
-static int16_t quantizeOut = 0;
-static int16_t euclidPos = 0;
-static int16_t euclidSyncDiv = 0;
-static int16_t euclidOnsets = 4;
-static int16_t euclidStepSize = 16;
-
-// sample and hold
 static Oscillator intLFO;
-static int16_t shTrigger = 1;
-static int16_t shSource = 0;
-static int16_t shIntOctMax = 3;
-static int16_t shIntSpeed = 20;
+static int16_t quantizeOut = 0;
 
 // 画面周り
 #define MENU_MAX (8+1)
@@ -89,35 +70,35 @@ static const char euclidSyncDivs[] = {1, 2, 3, 4, 8, 16};
 
 SettingItem16 commonSettings[] =
 {
-    SettingItem16(0, 2, 1, &seqSyncMode, "SYNC MODE: %s", seqSyncModes, 2),
-    SettingItem16(0, 256, 1, &bpm, "BPM: %d", NULL, 0),
-    SettingItem16(0, 10, 1, &scale, "SCALE: %s", scaleNames, 10),
-    SettingItem16(0, 3, 1, &swing, "SWING: %d", NULL, 0),
+    SettingItem16(0, 2, 1, &userConfig.seqSyncMode, "SYNC MODE: %s", seqSyncModes, 2),
+    SettingItem16(0, 256, 1, &userConfig.bpm, "BPM: %d", NULL, 0),
+    SettingItem16(0, 10, 1, &userConfig.scale, "SCALE: %s", scaleNames, 10),
+    SettingItem16(0, 3, 1, &userConfig.swing, "SWING: %d", NULL, 0),
 };
 
 SettingItem16 sequenceSettings[] =
 {
-    SettingItem16(-1, 4, 1, &octUnder, "OCT UNDER: %d", NULL, 0),
-    SettingItem16(-1, 4, 1, &octUpper, "OCT UPPER: %d", NULL, 0),
-    SettingItem16(0, StepSeqModel::Gate::Max, 1, &gateMin, "GATE MIN: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
-    SettingItem16(1, StepSeqModel::Gate::Max, 1, &gateMax, "GATE MAX: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
-    SettingItem16(0, StepSeqModel::Gate::Max, 1, &gateInitial, "GATE INI: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
+    SettingItem16(-1, 4, 1, &userConfig.octUnder, "OCT UNDER: %d", NULL, 0),
+    SettingItem16(-1, 4, 1, &userConfig.octUpper, "OCT UPPER: %d", NULL, 0),
+    SettingItem16(0, StepSeqModel::Gate::Max, 1, &userConfig.gateMin, "GATE MIN: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
+    SettingItem16(1, StepSeqModel::Gate::Max, 1, &userConfig.gateMax, "GATE MAX: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
+    SettingItem16(0, StepSeqModel::Gate::Max, 1, &userConfig.gateInitial, "GATE INI: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
 };
 
 SettingItem16 euclidSettings[] =
 {
-    SettingItem16(0, 5, 1, &euclidSyncDiv, "DIV:/%s", euclidSyncDivsStr, 6),
-    SettingItem16(-16, 16, 1, &euclidPos, "POS:%d", NULL, 0),
-    SettingItem16(0, 16, 1, &euclidOnsets, " ON:%2d", NULL, 0),
-    SettingItem16(1, 16, 1, &euclidStepSize, "STP:%2d", NULL, 0),
+    SettingItem16(0, 5, 1, &userConfig.euclidSyncDiv, "DIV:/%s", euclidSyncDivsStr, 6),
+    SettingItem16(-16, 16, 1, &userConfig.euclidPos, "POS:%d", NULL, 0),
+    SettingItem16(0, 16, 1, &userConfig.euclidOnsets, " ON:%2d", NULL, 0),
+    SettingItem16(1, 16, 1, &userConfig.euclidStepSize, "STP:%2d", NULL, 0),
 };
 
 SettingItem16 shettings[] =
 {
-    SettingItem16(0, 1, 1, &shTrigger, "TRG:%s", shTriggers, 2),
-    SettingItem16(0, 1, 1, &shSource, "SRC:%s", shSources, 2),
-    SettingItem16(1, 5, 1, &shIntOctMax, "OCT:%2d", NULL, 0),
-    SettingItem16(1, 99, 1, &shIntSpeed, "SPD:%2d", NULL, 0),
+    SettingItem16(0, 1, 1, &userConfig.shTrigger, "TRG:%s", shTriggers, 2),
+    SettingItem16(0, 1, 1, &userConfig.shSource, "SRC:%s", shSources, 2),
+    SettingItem16(1, 5, 1, &userConfig.shIntOctMax, "OCT:%2d", NULL, 0),
+    SettingItem16(1, 99, 1, &userConfig.shIntSpeed, "SPD:%2d", NULL, 0),
 };
 
 static MenuSection16 menu[] = {
@@ -204,6 +185,19 @@ void dispOLED()
     u8g2.setFont(u8g2_font_5x8_tf);
     sspc.updateDisplay();
 
+    if (saveConfirm)
+    {
+        u8g2.setDrawColor(0);
+        u8g2.drawBox(0, 0, 128, 40);
+        u8g2.setDrawColor(2);
+        u8g2.drawFrame(0, 0, 128, 40);
+        u8g2.setFont(u8g2_font_VCR_OSD_mf);
+        sprintf(disp_buf, "SAVE?");
+        u8g2.drawStr(6, 0, disp_buf);
+        sprintf(disp_buf, "Yes:A No:B");
+        u8g2.drawStr(5, 16, disp_buf);
+    }
+
     if (requiresUpdate)
         u8g2.sendBuffer();
     else
@@ -220,12 +214,12 @@ void interruptPWM()
     // euclid
     if (ready)
     {
-        if (sspc.getGatePos() % euclidSyncDivs[euclidSyncDiv] == 0)
+        if (sspc.getGatePos() % euclidSyncDivs[userConfig.euclidSyncDiv] == 0)
         {
             int8_t trig = euclid.getNext();
             euclidTrig.update(trig);
-            if ((shTrigger == 0 && ready) ||
-                (shTrigger == 1 && trig))
+            if ((userConfig.shTrigger == 0 && ready) ||
+                (userConfig.shTrigger == 1 && trig))
             {
                 pwm_set_gpio_level(OUT6, quantizeOut);
             }
@@ -271,23 +265,25 @@ void setup()
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
 
-    sspc.setClockMode(StepSeqPlayControl::CLOCK::INT);
+    initEEPROM();
+    loadUserConfig(&userConfig);
+
+    sspc.setClockMode((StepSeqPlayControl::CLOCK)userConfig.seqSyncMode);
+    sspc.setOctUnder(userConfig.octUnder);
+    sspc.setOctUpper(userConfig.octUpper);
+    sspc.setGateMin(userConfig.gateMin);
+    sspc.setGateMax(userConfig.gateMax);
+    sspc.setGateInitial(userConfig.gateInitial);
+    sspc.setSwingIndex(userConfig.swing);
+    sspc.setBPM(userConfig.bpm, 48);
+    sspc.setScale(userConfig.scale);
     sspc.requestResetAllSequence();
-    sspc.setBPM(133, 48);
     sspc.start();
-    bpm = sspc.getBPM();
-    scale = sspc.getScale();
-    octUnder = sspc.getOctUnder();
-    octUpper = sspc.getOctUpper();
-    gateMin = sspc.getGateMin();
-    gateMax = sspc.getGateMax();
-    gateInitial = sspc.getGateInitial();
-    swing = sspc.getSwingIndex();
 
     euclidTrig.init(OUT4);
-    euclid.generate(euclidOnsets, euclidStepSize);
+    euclid.generate(userConfig.euclidOnsets, userConfig.euclidStepSize);
     euclidDisp.init(28, 42, 21);
-    euclidDisp.generateCircle(euclidStepSize);
+    euclidDisp.generateCircle(userConfig.euclidStepSize);
 
     intLFO.init(SAMPLE_FREQ);
     intLFO.setWave(Oscillator::Wave::TRI);
@@ -303,17 +299,17 @@ void loop()
     int16_t cv1Value = cv1.analogReadDirect();
     uint16_t cv2Value = cv2.analogReadDirect();
 
-    intLFO.setFrequency(shIntSpeed);
+    intLFO.setFrequency(userConfig.shIntSpeed);
     uint16_t internalLFOValue = intLFO.getWaveValue();
 
     // quantizer
     int16_t cv = 0;
-    if (shSource)
+    if (userConfig.shSource)
     {
         cv = map(cv1Value, 0, 4096, 0, 36);
     }
     else {
-        cv = map(internalLFOValue, 0, 4096, 0, (7 * shIntOctMax) + 1);
+        cv = map(internalLFOValue, 0, 4096, 0, (7 * userConfig.shIntOctMax) + 1);
     }
     int8_t oct = cv / 7;
     int8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
@@ -351,7 +347,6 @@ void loop1()
         sspc.requestGenerateSequence();
     }
 
-    // requiresUpdate |= updateMenuIndex(btn0, btn1);
     if (btn2 == 2)
     {
         encMode = (encMode + 1) & 1;
@@ -401,7 +396,27 @@ void loop1()
     uint8_t step = map(potValue, 0, 4095, 0, 15);
     sspc.setSettingPos(step);
 
-    if (btn0 == 1)
+    // ec長押しで設定保存
+    if (btn2 == 4)
+    {
+        saveConfirm = true;
+        requiresUpdate |= 1;
+    }
+    if (saveConfirm)
+    {
+        if (btn0 == 2)
+        {
+            saveUserConfig(&userConfig);
+            saveConfirm = false;
+            requiresUpdate |= 1;
+        }
+        else if (btn1 == 2)
+        {
+            saveConfirm = false;
+            requiresUpdate |= 1;
+        }
+    }
+    else if (btn0 == 1)
     {
         if (sspc.isStart())
         {
@@ -462,26 +477,26 @@ void loop1()
             euclid.resetCurrent();
         }
         requiresUpdate |= euclidMenuControl.addValue2CurrentSetting(encValue);
-        euclidOnsets = constrain(euclidOnsets, 0, euclidStepSize);
-        euclidStepSize = constrain(euclidStepSize, euclidOnsets, euclid.EUCLID_MAX_STEPS);
-        euclid.setStartPos(euclidPos);
-        euclidPos = euclid.getStartPos();
-        if (euclid.generate(euclidOnsets, euclidStepSize))
+        userConfig.euclidOnsets = constrain(userConfig.euclidOnsets, 0, userConfig.euclidStepSize);
+        userConfig.euclidStepSize = constrain(userConfig.euclidStepSize, userConfig.euclidOnsets, euclid.EUCLID_MAX_STEPS);
+        euclid.setStartPos(userConfig.euclidPos);
+        userConfig.euclidPos = euclid.getStartPos();
+        if (euclid.generate(userConfig.euclidOnsets, userConfig.euclidStepSize))
         {
             euclidDisp.generateCircle(euclid.getStepSize());
         }
         break;
     default:
         requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
-        sspc.setClockMode((StepSeqPlayControl::CLOCK)seqSyncMode);
-        sspc.setOctUnder(octUnder);
-        sspc.setOctUpper(octUpper);
-        sspc.setGateMin(gateMin);
-        sspc.setGateMax(gateMax);
-        sspc.setGateInitial(gateInitial);
-        sspc.setSwingIndex(swing);
-        sspc.setBPM(bpm, 48);
-        sspc.setScale(scale);
+        sspc.setClockMode((StepSeqPlayControl::CLOCK)userConfig.seqSyncMode);
+        sspc.setOctUnder(userConfig.octUnder);
+        sspc.setOctUpper(userConfig.octUpper);
+        sspc.setGateMin(userConfig.gateMin);
+        sspc.setGateMax(userConfig.gateMax);
+        sspc.setGateInitial(userConfig.gateInitial);
+        sspc.setSwingIndex(userConfig.swing);
+        sspc.setBPM(userConfig.bpm, 48);
+        sspc.setScale(userConfig.scale);
         break;
     }
 

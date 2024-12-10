@@ -19,6 +19,7 @@
 #include "../../commonlib/common/pwm_wrapper.h"
 #include "PatternSeq.hpp"
 #include "SingleShotWave.hpp"
+#include "EepromData.h"
 
 // #include "wavetable/909_01/909_BD_Norm.h"
 #include "wavetable/808_01/808_BD_02.h"
@@ -62,11 +63,10 @@ static SmoothAnalogRead vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 
-// setting values
-float pitches[SEQUENCER_TOTAL] = {1.0,1.0,1.0,1.0,1.0,1.0};
-float decays[SEQUENCER_TOTAL] = {1.0,0.5,1.0,1.0,1.0,1.0};
-float volumes[SEQUENCER_TOTAL] = {0.7,1.0,1.0,0.8,1.0,1.0};
-float triggers[SEQUENCER_TOTAL] = {0, 0, 0, 0, 0, 0};
+// ユーザー設定
+static UserConfig userConfig;
+static bool saveConfirm = false;
+
 // 画面周り
 #define MENU_MAX (SEQUENCER_TOTAL + 1)
 static int16_t menuIndex = 0;
@@ -84,42 +84,42 @@ const char selTrigger[][5] = {"INT", "VOCT", "CV1", "CV2"};
 
 SettingItemF trigSettings[] =
 {
-    SettingItemF(0.0, 3.0, 1.0, &triggers[0], "RC: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &triggers[1], "HH: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &triggers[2], "LT: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &triggers[3], "RM: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &triggers[4], "SD: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &triggers[5], "BD: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[0], "RC: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[1], "HH: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[2], "LT: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[3], "RM: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[4], "SD: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[5], "BD: %s", selTrigger, 4),
 };
 
 SettingItemF volumeSettings[] =
 {
-    SettingItemF(0.1, 1.0, 0.05, &volumes[0], "RC: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &volumes[1], "HH: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &volumes[2], "LT: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &volumes[3], "RM: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &volumes[4], "SD: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &volumes[5], "BD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[0], "RC: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[1], "HH: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[2], "LT: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[3], "RM: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[4], "SD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[5], "BD: %4.2f", NULL, 0),
 };
 
 SettingItemF decaySettings[] =
 {
-    SettingItemF(0.01, 1.0, 0.01, &decays[0], "RC %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &decays[1], "HH %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &decays[2], "LT %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &decays[3], "RM %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &decays[4], "SD %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &decays[5], "BD %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[0], "RC %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[1], "HH %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[2], "LT %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[3], "RM %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[4], "SD %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[5], "BD %4.2f", NULL, 0),
 };
 
 SettingItemF pitchSettings[] =
 {
-    SettingItemF(0.1, 2.0, 0.01, &pitches[0], "RC: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &pitches[1], "HH: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &pitches[2], "LT: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &pitches[3], "RM: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &pitches[4], "SD: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &pitches[5], "BD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[0], "RC: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[1], "HH: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[2], "LT: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[3], "RM: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[4], "SD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[5], "BD: %4.2f", NULL, 0),
 };
 
 static MenuSectionF menu[] = {
@@ -147,10 +147,32 @@ void initOLED()
     u8g2.setDrawColor(2);
 }
 
+void saveDisp()
+{
+    static char disp_buf[33] = {0};
+    if (saveConfirm)
+    {
+        u8g2.setDrawColor(0);
+        u8g2.drawBox(0, 0, 128, 40);
+        u8g2.setDrawColor(2);
+        u8g2.drawFrame(0, 0, 128, 40);
+        u8g2.setFont(u8g2_font_VCR_OSD_mf);
+        sprintf(disp_buf, "SAVE?");
+        u8g2.drawStr(6, 0, disp_buf);
+        sprintf(disp_buf, "Yes:A No:B");
+        u8g2.drawStr(5, 16, disp_buf);
+    }
+}
+
 void dispOLED()
 {
     if (menuIndex < 6) {
         seq.updateDisplay(&u8g2, clockCount & (STEP_MAX - 1), menuIndex, encMode, requiresUpdate);
+        if (saveConfirm)
+        {
+            saveDisp();
+            u8g2.sendBuffer();
+        }
         requiresUpdate = 0;
         return;
     }
@@ -163,6 +185,7 @@ void dispOLED()
     u8g2.clearBuffer();
     requiresUpdate = 0;
     menuControl.draw(&u8g2, encMode);
+    saveDisp();
     u8g2.sendBuffer();
 }
 
@@ -210,6 +233,9 @@ void setup()
     initPWM(OUT5, PWM_RESO);
     initPWM(OUT6, PWM_RESO);
 
+    initEEPROM();
+    loadUserConfig(&userConfig);
+
     pKit[0] = &RC;
     pKit[1] = &OH;
     pKit[2] = &LT;
@@ -222,12 +248,12 @@ void setup()
     seq.setPatternName(3, "RM");
     seq.setPatternName(4, "SD");
     seq.setPatternName(5, "BD");
-    seq.setPattern(0, 3);
-    seq.setPattern(1, 16);
-    seq.setPattern(2, 19);
-    seq.setPattern(3, 26);
-    seq.setPattern(4, 25);
-    seq.setPattern(5, 32);
+    seq.setPattern(0, (uint8_t)userConfig.pattern[0]);
+    seq.setPattern(1, (uint8_t)userConfig.pattern[1]);
+    seq.setPattern(2, (uint8_t)userConfig.pattern[2]);
+    seq.setPattern(3, (uint8_t)userConfig.pattern[3]);
+    seq.setPattern(4, (uint8_t)userConfig.pattern[4]);
+    seq.setPattern(5, (uint8_t)userConfig.pattern[5]);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }
@@ -257,20 +283,20 @@ void loop()
 
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
-        pKit[i]->setSpeed(pitches[i]);
-        pKit[i]->updateDecay(decays[i]);
-        pKit[i]->setVolume(volumes[i]);
-        if (triggers[i] == 1)
+        pKit[i]->setSpeed(userConfig.pitches[i]);
+        pKit[i]->updateDecay(userConfig.decays[i]);
+        pKit[i]->setVolume(userConfig.volumes[i]);
+        if (userConfig.triggers[i] == 1)
         {
             pKit[i]->play(triggerVOct);
             continue;
         }
-        else if (triggers[i] == 2)
+        else if (userConfig.triggers[i] == 2)
         {
             pKit[i]->play(triggerCV1);
             continue;
         }
-        else if (triggers[i] == 3)
+        else if (userConfig.triggers[i] == 3)
         {
             pKit[i]->play(triggerCV2);
             continue;
@@ -287,15 +313,19 @@ void loop()
         pKit[i]->play(state);
     }
     
-    uint8_t btn1 = buttons[1].getState();
-    if (btn1 == 1 || btn1 == 3)
+    if (!saveConfirm)
     {
-        pKit[4]->setMute(false);
-        isSDFill = true;
-    }
-    else
-    {
-        isSDFill = false;
+        buttons[1].setHoldTime(5);
+        uint8_t btn1 = buttons[1].getState();
+        if (btn1 == 1 || btn1 == 3)
+        {
+            pKit[4]->setMute(false);
+            isSDFill = true;
+        }
+        else
+        {
+            isSDFill = false;
+        }
     }
 
     if (!clockEdge.isAlive())
@@ -367,7 +397,29 @@ void loop1()
         encValue = 0;
     }
 
-    if (btn0 == 1)
+    // ec長押しで設定保存
+    if (btn2 == 4)
+    {
+        saveConfirm = true;
+        requiresUpdate |= 1;
+    }
+    if (saveConfirm)
+    {
+        buttons[1].setHoldTime(500);
+        uint8_t btn1 = buttons[1].getState();
+        if (btn0 == 2)
+        {
+            saveUserConfig(&userConfig);
+            saveConfirm = false;
+            requiresUpdate |= 1;
+        }
+        else if (btn1 == 2)
+        {
+            saveConfirm = false;
+            requiresUpdate |= 1;
+        }
+    }
+    else if (btn0 == 1)
     {
         clockCount = 0;
     }
@@ -375,7 +427,8 @@ void loop1()
     if (menuIndex < SEQUENCER_TOTAL) {
         if (encMode)
         {
-            requiresUpdate |= seq.addSelectPattern((menuIndex % SEQUENCER_TOTAL), encValue);
+            requiresUpdate |= seq.addSelectPattern(menuIndex, encValue);
+            userConfig.pattern[menuIndex] = (float)seq.getPattern(menuIndex);
         }
     }
     else

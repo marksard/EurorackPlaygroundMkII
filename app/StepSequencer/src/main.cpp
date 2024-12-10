@@ -257,7 +257,7 @@ void setup()
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);
-    pinMode(GATE, INPUT);
+    // pinMode(GATE, INPUT);
 
     initPWM(OUT5, PWM_RESO);
     initPWM(OUT6, PWM_RESO);

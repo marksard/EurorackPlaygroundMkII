@@ -234,7 +234,7 @@ void setup()
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);
-    pinMode(GATE, INPUT);
+    // pinMode(GATE, INPUT);
 
     initEEPROM();
     loadUserConfig(&userConfig);

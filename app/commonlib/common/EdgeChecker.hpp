@@ -23,6 +23,7 @@ public:
     void init(uint8_t pin, ulong aliveTimeMillis = 1000)
     {
         _aliveTimeMicros = aliveTimeMillis * 1000;
+        pinMode(pin, INPUT);
         setPin(pin);
         // 空読み
         for(int i = 0; i < 8; ++i)

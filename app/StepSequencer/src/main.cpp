@@ -70,7 +70,7 @@ static const char euclidSyncDivs[] = {1, 2, 3, 4, 8, 16};
 
 SettingItem16 commonSettings[] =
 {
-    SettingItem16(0, 2, 1, &userConfig.seqSyncMode, "SYNC MODE: %s", seqSyncModes, 2),
+    SettingItem16(0, 1, 1, &userConfig.seqSyncMode, "SYNC MODE: %s", seqSyncModes, 2),
     SettingItem16(0, 256, 1, &userConfig.bpm, "BPM: %d", NULL, 0),
     SettingItem16(0, 10, 1, &userConfig.scale, "SCALE: %s", scaleNames, 10),
     SettingItem16(0, 3, 1, &userConfig.swing, "SWING: %d", NULL, 0),
@@ -476,15 +476,17 @@ void loop1()
         {
             euclid.resetCurrent();
         }
+
         requiresUpdate |= euclidMenuControl.addValue2CurrentSetting(encValue);
-        userConfig.euclidOnsets = constrain(userConfig.euclidOnsets, 0, userConfig.euclidStepSize);
+        userConfig.euclidOnsets = constrain(userConfig.euclidOnsets, 0, euclid.EUCLID_MAX_STEPS);
         userConfig.euclidStepSize = constrain(userConfig.euclidStepSize, userConfig.euclidOnsets, euclid.EUCLID_MAX_STEPS);
         euclid.setStartPos(userConfig.euclidPos);
-        userConfig.euclidPos = euclid.getStartPos();
         if (euclid.generate(userConfig.euclidOnsets, userConfig.euclidStepSize))
         {
             euclidDisp.generateCircle(euclid.getStepSize());
         }
+
+        userConfig.euclidPos = euclid.getStartPos();
         break;
     default:
         requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);

@@ -90,13 +90,15 @@ public:
     // ユークリッドリズムを生成
     bool generate(uint16_t onsets, uint16_t stepSize)
     {
+        int8_t distanceStartPos = _stepSize - stepSize;
         if (_stepSize == stepSize && _onsets == onsets)
         {
             return false;
         }
-
         _onsets = onsets;
         _stepSize = stepSize;
+        if (_startPos > 0)
+            _startPos = constrainCyclic<int8_t>(_startPos - distanceStartPos, 0, (int8_t)_stepSize - 1);
         generate();
         return true;
     }

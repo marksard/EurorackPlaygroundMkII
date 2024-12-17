@@ -59,9 +59,9 @@ static U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NON
 static SmoothAnalogRead pot;
 static RotaryEncoder enc;
 static Button buttons[3];
-static SmoothAnalogRead vOct;
-static SmoothAnalogRead cv1;
-static SmoothAnalogRead cv2;
+static EdgeChecker vOct;
+static EdgeChecker cv1;
+static EdgeChecker cv2;
 
 // ユーザー設定
 static UserConfig userConfig;
@@ -262,12 +262,9 @@ void loop()
 {
     bool acc = encMode && menuIndex >= SEQUENCER_TOTAL ? true : false;
     enc.getDirection(acc);
-    uint16_t voct = vOct.analogReadDirectFast();
-    int16_t cv1Value = cv1.analogReadDirectFast();
-    uint16_t cv2Value = cv2.analogReadDirectFast();
-    int8_t triggerVOct = voct > 2048;
-    int8_t triggerCV1 = cv1Value > 2048;
-    int8_t triggerCV2 = cv2Value > 2048;
+    bool voctValue = vOct.isEdgeHigh();
+    bool cv1Value = cv1.isEdgeHigh();
+    bool cv2Value = cv2.isEdgeHigh();
 
     bool trig = clockEdge.isEdgeHigh();
 
@@ -288,17 +285,17 @@ void loop()
         pKit[i]->setVolume(userConfig.volumes[i]);
         if (userConfig.triggers[i] == 1)
         {
-            pKit[i]->play(triggerVOct);
+            pKit[i]->play(voctValue);
             continue;
         }
         else if (userConfig.triggers[i] == 2)
         {
-            pKit[i]->play(triggerCV1);
+            pKit[i]->play(cv1Value);
             continue;
         }
         else if (userConfig.triggers[i] == 3)
         {
-            pKit[i]->play(triggerCV2);
+            pKit[i]->play(cv2Value);
             continue;
         }
 

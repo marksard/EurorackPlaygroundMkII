@@ -41,6 +41,7 @@ static int16_t vOctValue = 0;
 static int16_t gateValue = 0;
 static int16_t cv1Value = 0;
 static int16_t cv2Value = 0;
+static int16_t bias = 0;
 
 //////////////////////////////////////////
 
@@ -57,6 +58,7 @@ SettingItem16 settings[] =
     SettingItem16(0, 4095, 1, &gateValue, "gate: %d", NULL, 0),
     SettingItem16(0, 4095, 1, &cv1Value, "cv1: %d", NULL, 0),
     SettingItem16(0, 4095, 1, &cv2Value, "cv2: %d", NULL, 0),
+    SettingItem16(0, 1, 1, &bias, "bias: %d", NULL, 0),
 };
 
 static MenuSection16 menu[] = {
@@ -133,37 +135,18 @@ void setup()
 
 void loop()
 {
-    uint8_t btn0 = buttons[0].getState();
-    uint8_t btn1 = buttons[1].getState();
-    uint8_t btn2 = buttons[2].getState();
-    uint16_t potValue = pot.analogRead(true, true);
-    bool acc = encMode ? true : false;
-    int8_t encValue = enc.getDirection(acc);
     vOctValue = vOct.analogReadDirectFast();
     gateValue = gate.isEdgeHigh();
     cv1Value = cv1.analogReadDirectFast();
     cv2Value = cv2.analogReadDirectFast();
 
-    if (btn2 == 2)
-    {
-        encMode = (encMode + 1) & 1;
-        requiresUpdate |= 1;
-    }
-    else if (encMode == 0)
-    {
-        requiresUpdate |= menuControl.select(encValue);
-        encValue = 0;
-    }
-
-    requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
-    requiresUpdate = 1;
-
-    pwm_set_gpio_level(OUT1, 4095);
-    pwm_set_gpio_level(OUT2, 4095);
-    pwm_set_gpio_level(OUT3, 4095);
-    pwm_set_gpio_level(OUT4, 4095);
-    pwm_set_gpio_level(OUT5, 4095);
-    pwm_set_gpio_level(OUT6, 4095);
+    int16_t value = bias ? 2048 : 4096;
+    pwm_set_gpio_level(OUT1, value);
+    pwm_set_gpio_level(OUT2, value);
+    pwm_set_gpio_level(OUT3, value);
+    pwm_set_gpio_level(OUT4, value);
+    pwm_set_gpio_level(OUT5, value);
+    pwm_set_gpio_level(OUT6, value);
 
     gpio_put(LED1, gateValue ? HIGH : LOW);
     gpio_put(LED2, vOctValue > 4094 ? HIGH : LOW);
@@ -193,6 +176,27 @@ void setup1()
 
 void loop1()
 {
+    uint8_t btn0 = buttons[0].getState();
+    uint8_t btn1 = buttons[1].getState();
+    uint8_t btn2 = buttons[2].getState();
+    uint16_t potValue = pot.analogRead(true, true);
+    bool acc = encMode ? true : false;
+    int8_t encValue = enc.getDirection(acc);
+
+    if (btn2 == 2)
+    {
+        encMode = (encMode + 1) & 1;
+        requiresUpdate |= 1;
+    }
+    else if (encMode == 0)
+    {
+        requiresUpdate |= menuControl.select(encValue);
+        encValue = 0;
+    }
+
+    requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
+    requiresUpdate = 1;
+
     if (!updateOLED.ready())
     {
         sleep_ms(1);

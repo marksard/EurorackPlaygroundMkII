@@ -12,6 +12,11 @@
 #define WAVE_LENGTH 4096
 #define WAVE_LENGTH_BIT 12
 
+#ifdef bit_10
+#include "wavetable/sine_10bit_4096.h"
+#define WAVE_INDEX_DIV_BIT 2 // WAVE_LENGTH_BIT - WAVE_HEIGHT
+#define WAVE_HEIGHT 1024
+#endif
 #ifdef bit_11
 #include "wavetable/sine_11bit_4096.h"
 #define WAVE_INDEX_DIV_BIT 1 // WAVE_LENGTH_BIT - WAVE_HEIGHT

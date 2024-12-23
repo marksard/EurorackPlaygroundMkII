@@ -226,12 +226,19 @@ void setup()
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
 
-    initPWM(OUT1, PWM_RESO);
-    initPWM(OUT2, PWM_RESO);
-    initPWM(OUT3, PWM_RESO);
-    initPWM(OUT4, PWM_RESO);
-    initPWM(OUT5, PWM_RESO);
-    initPWM(OUT6, PWM_RESO);
+    initPWM(OUT1, PWM_RESO, false);
+    initPWM(OUT2, PWM_RESO, false);
+    initPWM(OUT3, PWM_RESO, false);
+    initPWM(OUT4, PWM_RESO, false);
+    initPWM(OUT5, PWM_RESO, false);
+    initPWM(OUT6, PWM_RESO, false);
+
+    uint slice = 0;
+    for (int i = 0; i < SEQUENCER_TOTAL; ++i)
+    {
+        slice |= 0x01 << pwm_gpio_to_slice_num(pwmOuts[i]);
+    }
+    pwm_set_mask_enabled(slice);
 
     initEEPROM();
     loadUserConfig(&userConfig);

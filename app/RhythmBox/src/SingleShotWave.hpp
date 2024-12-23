@@ -93,7 +93,7 @@ public:
         _waveIndex = 0.0;
         _pitch = 1.0;
         _volume = 1.0;
-        _bias = 1023;
+        _bias = 1024;
         _decayIndex = 0.0;
         _decayValue = 0;
         _lastEdge = 0;

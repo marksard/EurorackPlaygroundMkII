@@ -126,10 +126,6 @@ void dispOLED()
 {
     static char disp_buf[33] = {0};
 
-    // if (!requiresUpdate)
-    //     return;
-    // requiresUpdate = 0;
-
     sspc.updateLED();
 
     if (requiresUpdate)

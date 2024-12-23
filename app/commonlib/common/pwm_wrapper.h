@@ -27,12 +27,20 @@ uint initPWMIntr(uint gpio, irq_handler_t handler, uint *pSlice, uint32_t sample
     return slice;
 }
 
-void initPWM(uint gpio, uint16_t resolution)
+void initPWM(uint gpio, uint16_t resolution, bool start = true)
 {
     gpio_set_function(gpio, GPIO_FUNC_PWM);
     uint slice = pwm_gpio_to_slice_num(gpio);
-    pwm_set_wrap(slice, resolution - 1);
-    pwm_set_enabled(slice, true);
+
+    pwm_config conf = pwm_get_default_config();
+    pwm_config_set_output_polarity(&conf, true, false);
+    pwm_config_set_wrap(&conf, resolution - 1);
     // 最速にして滑らかなPWMを得る
-    pwm_set_clkdiv(slice, 1);
+    pwm_config_set_clkdiv(&conf, 1);
+    pwm_init(slice, &conf, start);
+
+    // pwm_set_wrap(slice, resolution - 1);
+    // // 最速にして滑らかなPWMを得る
+    // pwm_set_clkdiv(slice, 1);
+    // pwm_set_enabled(slice, start);
 }

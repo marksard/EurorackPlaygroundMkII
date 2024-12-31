@@ -47,7 +47,7 @@ int pwmOuts[SEQUENCER_TOTAL] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 bool isSDFill = false;
 
 #define CPU_CLOCK 133000000.0
-#define INTR_PWM_RESO 256
+#define INTR_PWM_RESO 512
 #define PWM_RESO 2048         // 11bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
@@ -214,10 +214,10 @@ void setup()
 
     pot.init(POT1);
     enc.init(EC1A, EC1B, true);
-    buttons[0].init(BTN1);
-    buttons[1].init(BTN2);
+    buttons[0].init(BTN1, false);
+    buttons[1].init(BTN2, false);
     buttons[1].setHoldTime(5);
-    buttons[2].init(BTN3);
+    buttons[2].init(BTN3, false);
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);

@@ -43,7 +43,6 @@ SingleShotWave RS(buf_808_Rim_01, buf_size_808_Rim_01);
 SingleShotWave SD(buf_808_SD_01, buf_size_808_SD_01);
 SingleShotWave BD(buf_808_BD_02, buf_size_808_BD_02);
 SingleShotWave<int16_t> *pKit[SEQUENCER_TOTAL];
-int pwmOuts[SEQUENCER_TOTAL] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 bool isSDFill = false;
 
 #define CPU_CLOCK 133000000.0
@@ -62,6 +61,7 @@ static Button buttons[3];
 static EdgeChecker vOct;
 static EdgeChecker cv1;
 static EdgeChecker cv2;
+static int pwmOuts[6] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 
 // ユーザー設定
 static UserConfig userConfig;
@@ -234,7 +234,7 @@ void setup()
     initPWM(OUT6, PWM_RESO, false);
 
     uint slice = 0;
-    for (int i = 0; i < SEQUENCER_TOTAL; ++i)
+    for (int i = 0; i < 6; ++i)
     {
         slice |= 0x01 << pwm_gpio_to_slice_num(pwmOuts[i]);
     }

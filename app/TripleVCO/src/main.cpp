@@ -21,7 +21,8 @@
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
-#define PWM_RESO 4096         // 11bit
+#define PWM_RESO 4096         // 12bit
+// #define PWM_RESO 1024         // 10bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
@@ -37,6 +38,7 @@ static Button buttons[3];
 static SmoothAnalogRead vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
+static int pwmOuts[6] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 
 // ユーザー設定
 static UserConfig userConfig;
@@ -112,7 +114,7 @@ void drawOSC(uint8_t oscIndex, uint8_t rangeMode)
     sprintf(disp_buf, "%s %s", modeDisp[rangeMode], oscNames[oscIndex]);
     u8g2.drawStr(0, 0, disp_buf);
 
-    if (osc[oscIndex].getWave() == Oscillator::Wave::PH_RAMP)
+        if (osc[0].getWave() == Oscillator::Wave::SAW || osc[0].getWave() == Oscillator::Wave::MUL_TRI)
     {
         if (userConfig.oscAParaCV > 0)
             sprintf(disp_buf, "%s p:cv%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), userConfig.oscAParaCV);
@@ -259,14 +261,21 @@ void setup()
     osc[2].setFreqName(userConfig.oscCCoarse);
     osc[2].setPhaseShift(5);
 
-    initPWM(OUT1, PWM_RESO);
-    initPWM(OUT2, PWM_RESO);
-    initPWM(OUT3, PWM_RESO);
-    initPWM(OUT4, PWM_RESO);
-    initPWM(OUT5, PWM_RESO);
-    initPWM(OUT6, PWM_RESO);
+    initPWM(OUT1, PWM_RESO, false);
+    initPWM(OUT2, PWM_RESO, false);
+    initPWM(OUT3, PWM_RESO, false);
+    initPWM(OUT4, PWM_RESO, false);
+    initPWM(OUT5, PWM_RESO, false);
+    initPWM(OUT6, PWM_RESO, false);
     initPWM(LED1, PWM_RESO);
     initPWM(LED2, PWM_RESO);
+
+    uint slice = 0;
+    for (int i = 0; i < 6; ++i)
+    {
+        slice |= 0x01 << pwm_gpio_to_slice_num(pwmOuts[i]);
+    }
+    pwm_set_mask_enabled(slice);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 
@@ -398,7 +407,7 @@ void loop()
         }
         else if (btn0 == 3)
         {
-            if (userConfig.oscAWave == Oscillator::Wave::PH_RAMP)
+            if (userConfig.oscAWave == Oscillator::Wave::SAW || userConfig.oscAWave == Oscillator::Wave::MUL_TRI)
             {
                 osc[0].addPhaseShift((int)encValue);
                 requiresUpdate |= userConfig.oscAPhaseShift != osc[0].getPhaseShift();
@@ -430,7 +439,7 @@ void loop()
         }
         else if (btn0 == 3)
         {
-            if (userConfig.oscBWave == Oscillator::Wave::PH_RAMP)
+            if (userConfig.oscBWave == Oscillator::Wave::SAW || userConfig.oscBWave == Oscillator::Wave::MUL_TRI)
             {
                 osc[1].addPhaseShift((int)encValue);
                 requiresUpdate |= userConfig.oscBPhaseShift != osc[1].getPhaseShift();

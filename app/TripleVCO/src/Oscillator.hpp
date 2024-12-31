@@ -12,12 +12,12 @@
 #define WAVE_LENGTH 4096
 #define WAVE_LENGTH_BIT 12
 
+// #define bit_10
 #ifdef bit_10
 #include "wavetable/sine_10bit_4096.h"
 #define WAVE_INDEX_DIV_BIT 2 // WAVE_LENGTH_BIT - WAVE_HEIGHT
 #define WAVE_HEIGHT 1024
-#endif
-#ifdef bit_11
+#elif defined(bit_11)
 #include "wavetable/sine_11bit_4096.h"
 #define WAVE_INDEX_DIV_BIT 1 // WAVE_LENGTH_BIT - WAVE_HEIGHT
 #define WAVE_HEIGHT 2048
@@ -26,6 +26,9 @@
 #define WAVE_INDEX_DIV_BIT 0 // WAVE_LENGTH_BIT - WAVE_HEIGHT
 #define WAVE_HEIGHT 4096
 #endif
+
+#define WAVE_HEIGHT_BIT (WAVE_LENGTH_BIT - WAVE_INDEX_DIV_BIT)
+#define FOLD_TRI_MAX ((WAVE_HEIGHT >> 1) - (WAVE_HEIGHT >> 4))
 
 #define OSC_WAVE_BIT 32
 #define OSC_WAVE_BIT32 4294967296 // 2^32
@@ -82,31 +85,27 @@ public:
     enum Wave
     {
         SQU,
-        DRAMP,
-        URAMP,
-        SINE_RAMP,
-        PH_RAMP,
+        SAW,
+        MUL_TRI,
         TRI,
         SINE,
         NOISE,
         MAX = NOISE,
     };
-    const char waveName[Wave::MAX + 1][9] = {"SQUARE  ", "DN-RAMP ", "UP-RAMP ", "SI-RAMP ", "PH-RAMP ", "TRIANGLE", "  SINE  ", "W-NOISE "};
+    const char waveName[Wave::MAX + 1][9] = {" SQUARE ", "SAWWAVE ", "MUL-TRI", "TRIANGLE", "  SINE  ", "W-NOISE "};
     // 上位12ビット(0~4095)をindex範囲にする
     const uint32_t indexBit = OSC_WAVE_BIT - WAVE_LENGTH_BIT;
 
 public:
     Oscillator()
-        : _phaseShift(0, 99, 0, 99), _folding(0, 800, 0, 800)
+        : _phaseShift(0, 63, 0, 63), _folding(0, FOLD_TRI_MAX, 0, FOLD_TRI_MAX)
     {
     }
 
     void init(float clock)
     {
         _phaseAccum = 0;
-        _phaseAccum2 = 0;
         _tuningWordM = 0;
-        _tuningWordM2 = 0;
         _wave = Wave::SQU;
         _noteNameIndex = 0;
         _widthHalf = WAVE_LENGTH >> 1;
@@ -127,24 +126,26 @@ public:
     {
         _phaseAccum = _phaseAccum + _tuningWordM;
         uint32_t index = _phaseAccum >> indexBit;
-        _phaseAccum2 = _phaseAccum2 + _tuningWordM2;
         uint32_t indexHeight = (index >> WAVE_INDEX_DIV_BIT);
-        uint32_t indexPhase = _phaseAccum2 >> indexBit;
-        uint16_t indexOffset = (index + 3030) % WAVE_LENGTH;
+        uint32_t indexPhase = (indexHeight + (_phaseShift.get() << (5 - WAVE_INDEX_DIV_BIT))) % WAVE_HEIGHT;
         uint16_t value = 0;
         switch (_wave)
         {
         case Wave::SQU:
             value = index < _widthHalf ? _heightM1 : 0;
             break;
-        case Wave::DRAMP:
-            value = _heightM1 - indexHeight;
+        case Wave::SAW:
+            value = applyPhaseShift(value, indexHeight, indexPhase);
             break;
-        case Wave::URAMP:
-            value = indexHeight;
+        case Wave::MUL_TRI:
+            {
+                value = getTriangle(index, indexHeight);
+                uint16_t value2 = getTriangle(index, indexPhase);
+                value = ((value * value2) >> WAVE_HEIGHT_BIT) % WAVE_HEIGHT;
+            }
             break;
         case Wave::TRI:
-            value = index < _widthHalf ? indexHeight * 2 : (_heightM1 - indexHeight) * 2;
+            value = getTriangle(index, indexHeight);
             if (_isFolding)
                 value = applyEzFolding(value);
             break;
@@ -155,12 +156,6 @@ public:
             break;
         case Wave::NOISE:
             value = getRandom16(WAVE_HEIGHT);
-            break;
-        case Wave::SINE_RAMP:
-            value = ((indexHeight + sine_1xbit[indexOffset]) >> 1) % WAVE_HEIGHT;
-            break;
-        case Wave::PH_RAMP:
-            value = ((indexHeight * indexPhase) >> 11) % WAVE_HEIGHT;
             break;
         default:
             value = 0;
@@ -177,7 +172,6 @@ public:
     {
         // チューニングワード値 = 2^N(ここでは32bitに設定) * 出力したい周波数 / クロック周波数
         _tuningWordM = OSC_WAVE_BIT32 * ((float)frequency / _interruptClock);
-        _tuningWordM2 = OSC_WAVE_BIT32 * ((float)(frequency + _phaseShift.get()) / _interruptClock);
     }
 
     void addPhaseShift(int8_t value)
@@ -226,6 +220,29 @@ public:
         return result;
     }
 
+    uint8_t getNoteNameIndexFromFreq(float frequency)
+    {
+        for (int i = 127; i >= 0; --i)
+        {
+            if (noteFreq[i] <= frequency)
+            {
+                return i + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    void setFrequencyFromNoteNameIndex(int8_t noteNameIndex)
+    {
+        if (noteNameIndex < 0)
+        {
+            noteNameIndex = 0;
+        }
+        float frequency = noteFreq[noteNameIndex];
+        setFrequency(frequency);
+    }
+
     bool setFreqName(float frequency)
     {
         bool result = false;
@@ -266,8 +283,6 @@ public:
 private:
     uint32_t _phaseAccum;
     uint32_t _tuningWordM;
-    uint32_t _phaseAccum2;
-    uint32_t _tuningWordM2;
     Wave _wave;
     uint16_t _widthHalf;
     uint16_t _widthM1;
@@ -285,15 +300,34 @@ private:
     uint32_t m_z = 2;
     bool _isFolding;
 
+    inline uint16_t getTriangle(uint32_t index, uint32_t indexHeight)
+    {
+        return index < _widthHalf ? (indexHeight << 1) : ((_heightM1 - indexHeight) << 1);
+    } 
+
+    uint16_t applyPhaseShift(uint16_t value, uint32_t indexHeight, uint32_t indexPhase)
+    {
+        // Phase shift with normalize. (Not exact, but light.)
+        uint16_t sum = indexHeight + indexPhase;
+        uint16_t diff = abs((long)indexHeight - (long)indexPhase) % _heightHalf;
+        return map(sum, 
+                    diff,
+                    WAVE_HEIGHT,
+                    0,
+                    _heightHalf);
+    }
+
     // Light-weight Wavefolder
     inline uint16_t applyEzFolding(uint16_t value)
     {
+        // Wavefolding
         int16_t foldLower = _folding.get();
         int16_t foldUpper = (_heightM1 - foldLower);
         if (value > foldUpper)
             value = foldUpper - (value - foldUpper);
         if (value < foldLower)
             value = foldLower + (foldLower - value);
+        // Normalize
         value = map(value, foldLower, foldUpper, 0, _heightM1);
         return value;
     }

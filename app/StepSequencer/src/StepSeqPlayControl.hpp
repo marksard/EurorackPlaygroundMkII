@@ -293,6 +293,16 @@ public:
         int length = _pTrigger->getMills() * _seqReadyCountMax;
         return length;
     }
+    
+    bool isExternalSyncAlive()
+    {
+        if (_clock == CLOCK::EXT)
+        {
+            return _syncIn.isAlive();
+        }
+
+        return true;
+    }
 
     void updateGateOut(bool updateDuration)
     {
@@ -304,7 +314,7 @@ public:
             // Serial.print(",");
             // Serial.print(length);
             // Serial.print(",");
-            _syncOut.setDuration(length >> 2);
+            _syncOut.setDuration(length >> 3);
             _syncOut.update(1);
             length = map(duration, 0, 100, 0, length);
             // Serial.print(length);
@@ -345,6 +355,7 @@ public:
         {  2, -2,  2, -2 },
         {  3, -3,  3, -3 }
     };
+
     int8_t updateProcedure()
     {
         int8_t result = 0;

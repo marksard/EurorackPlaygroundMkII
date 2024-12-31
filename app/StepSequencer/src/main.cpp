@@ -431,6 +431,11 @@ void loop1()
         sspc.reset();
     }
 
+    if (sspc.isExternalSyncAlive() == false)
+    {
+        euclid.resetCurrent();
+    }
+
     switch (menuIndex)
     {
     case 0:

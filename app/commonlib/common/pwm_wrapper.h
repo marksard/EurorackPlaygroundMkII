@@ -7,6 +7,7 @@
 
 #pragma once
 #include <Arduino.h>
+#include "hardware/pwm.h"  // PWMの制御用ヘッダー
 
 // OUT_A/Bとは違うPWMチャンネルのPWM割り込みにすること
 uint initPWMIntr(uint gpio, irq_handler_t handler, uint *pSlice, uint32_t sampleFreq, uint16_t wrap = 512, float cpuClock = 133000000.0)

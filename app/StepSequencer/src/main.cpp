@@ -307,8 +307,8 @@ void loop()
     else {
         cv = map(internalLFOValue, 0, 4096, 0, (7 * userConfig.shIntOctMax) + 1);
     }
-    int8_t oct = cv / 7;
-    int8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
+    uint8_t oct = cv / 7;
+    uint8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
     quantizeOut = ((oct * 12) + semi) * sspc.VoltPerTone;
 
     int length = sspc.getStepDulation();

@@ -79,13 +79,17 @@ SettingItem16 shiftResisterSettings[] =
     SettingItem16(1, 8, 1, &shiftRegisterIndex[2], "OUT3: %d", NULL, 0),
     SettingItem16(1, 8, 1, &shiftRegisterIndex[3], "OUT4: %d", NULL, 0),
     SettingItem16(1, 8, 1, &shiftRegisterIndex[4], "OUT5: %d", NULL, 0),
-    SettingItem16(1, 8, 1, &shiftRegisterIndex[4], "OUT5: %d", NULL, 0),
+};
+
+SettingItem16 r2rSettings[] =
+{
     SettingItem16(0, 10, 1, &r2rScale, "SCALE: %s", scaleNames, 10),
     SettingItem16(1, 5, 1, &r2rOctMax, "OCT:%2d", NULL, 0),
 };
 
 static MenuSection16 menu[] = {
-    {"SHIFT REG", shiftResisterSettings, sizeof(shiftResisterSettings) / sizeof(shiftResisterSettings[0])},
+    {"SHFT-REGIST", shiftResisterSettings, sizeof(shiftResisterSettings) / sizeof(shiftResisterSettings[0])},
+    {"R2R OUT", r2rSettings, sizeof(r2rSettings) / sizeof(r2rSettings[0])},
 };
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));

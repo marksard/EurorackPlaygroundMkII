@@ -39,8 +39,11 @@ static SmoothAnalogRead cv2;
 // entries
 static int16_t vOctValue = 0;
 static int16_t gateValue = 0;
+static int16_t potValue = 0;
 static int16_t cv1Value = 0;
 static int16_t cv2Value = 0;
+static int16_t btn1Value = 0;
+static int16_t btn2Value = 0;
 static int16_t bias = 0;
 
 //////////////////////////////////////////
@@ -54,6 +57,9 @@ const char testName[][5] = {"INT", "EXT"};
 
 SettingItem16 settings[] =
 {
+    SettingItem16(0, 4095, 1, &potValue, "pot: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &btn1Value, "btn1: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &btn2Value, "btn2: %d", NULL, 0),
     SettingItem16(0, 4095, 1, &vOctValue, "voct: %d", NULL, 0),
     SettingItem16(0, 4095, 1, &gateValue, "gate: %d", NULL, 0),
     SettingItem16(0, 4095, 1, &cv1Value, "cv1: %d", NULL, 0),
@@ -140,7 +146,7 @@ void loop()
     cv1Value = cv1.analogReadDirectFast();
     cv2Value = cv2.analogReadDirectFast();
 
-    int16_t value = bias ? 2048 : 4096;
+    int16_t value = bias ? 2047 : 4095;
     pwm_set_gpio_level(OUT1, value);
     pwm_set_gpio_level(OUT2, value);
     pwm_set_gpio_level(OUT3, value);
@@ -155,33 +161,38 @@ void loop()
     // dispCount++;
     // if (dispCount == 0)
     // {
-    //     Serial.print(clockEdge.getBPM());
+    //     Serial.print(gate.getBPM());
     //     Serial.print(", ");
-    //     Serial.print(pollingEvent.getBPM());
+    //     Serial.print(vOctValue);
     //     Serial.print(", ");
     //     Serial.print(cv2Value);
     //     Serial.println();
     // }
 
-    sleep_us(50); // 20kHz
-    // sleep_ms(1);
+    // sleep_us(50); // 20kHz
+    sleep_ms(1);
 }
 
 void setup1()
 {
     initOLED();
-    updateOLED.setMills(33);
+    updateOLED.setMills(100);
     updateOLED.start();
 }
 
 void loop1()
 {
-    uint8_t btn0 = buttons[0].getState();
-    uint8_t btn1 = buttons[1].getState();
+    btn1Value = buttons[0].getState();
+    btn2Value = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
-    uint16_t potValue = pot.analogRead(true, true);
+    potValue = pot.analogRead(true, true);
     bool acc = encMode ? true : false;
     int8_t encValue = enc.getDirection(acc);
+
+    if (btn1Value > 0 || btn2Value > 0)
+    {
+        requiresUpdate |= 1;
+    }
 
     if (btn2 == 2)
     {

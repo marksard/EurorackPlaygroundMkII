@@ -114,7 +114,7 @@ void drawOSC(uint8_t oscIndex, uint8_t rangeMode)
     sprintf(disp_buf, "%s %s", modeDisp[rangeMode], oscNames[oscIndex]);
     u8g2.drawStr(0, 0, disp_buf);
 
-        if (osc[0].getWave() == Oscillator::Wave::SAW || osc[0].getWave() == Oscillator::Wave::MUL_TRI)
+    if (osc[oscIndex].getWave() == Oscillator::Wave::SAW || osc[oscIndex].getWave() == Oscillator::Wave::MUL_TRI)
     {
         if (userConfig.oscAParaCV > 0)
             sprintf(disp_buf, "%s p:cv%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), userConfig.oscAParaCV);

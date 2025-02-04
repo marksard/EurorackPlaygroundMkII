@@ -30,8 +30,8 @@ static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 static TriggerOut clockOut;
 
-#define DATA_IN VOCT
-#define CLOCK_IN GATE
+#define DATA_IN GATE
+#define CLOCK_IN VOCT
 uint8_t shiftRegister[8] = {0};
 int16_t shiftRegisterIndex[5] = {1, 2, 3, 4, 5};
 int16_t r2rScale = 5;

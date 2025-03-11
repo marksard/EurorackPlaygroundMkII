@@ -96,6 +96,7 @@ PollingTimeEvent updateOLED;
 const char selCV[][5] = {"---", "CV1", "CV2"};
 const char selOct[][5] = {"---", "12", "24"};
 const char selArp[][5] = {"---", "UP", "DOWN", "RAND"};
+const char selVOctLock[][5] = {"FREE", "GATE"};
 static SmoothRandomCV smoothRand(ADC_RESO);
 
 SettingItem16 commonSettings[] =
@@ -104,6 +105,8 @@ SettingItem16 commonSettings[] =
     SettingItem16(0, 2, 1, &userConfig.seventhMinus, "7TH: %s", selOct, 3),
     SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "VCO A Para: %s", selCV, 3),
     SettingItem16(0, 3, 1, &userConfig.arpMode, "ARP Mode: %s", selArp, 4),
+    SettingItem16(0, 1, 1, &userConfig.voctMode, "V/OCT Mode: %s", selVOctLock, 2),
+    SettingItem16(0, 50, 1, &userConfig.boostLevel, "Boost LVL: %2d", NULL, 0),
     SettingItem16(-200, 200, 1, &userConfig.voctTune, "Init  VOCT:%4d", NULL, 0)
 };
 
@@ -222,6 +225,8 @@ void dispOLED()
     u8g2.sendBuffer();
 }
 
+static int16_t bias_avg = 0;
+static int16_t chord_value = 0;
 void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
@@ -236,20 +241,20 @@ void interruptPWM()
     }
 
     // 平均してSQU以外は少しゲインを持ち上げる
-    int16_t value = sum * 0.25;
-    value -= 512;
+    chord_value = sum >> 2;
+    chord_value -= bias_avg;
     if (osc[0].getWave() == Oscillator::Wave::SQU)
     {
-        value *= 0.9;
+        chord_value *= 0.8;
     }
     else
     {
-        value = value * 1.25;
+        chord_value *= (110 + userConfig.boostLevel) * 0.01;
     }
-    value += 512;
-    value = constrain(value, 0, 1024);
+    chord_value += (int16_t)bias_avg;
+    chord_value = constrain(chord_value, 0, 1024);
 
-    pwm_set_gpio_level(OUT1, value);
+    pwm_set_gpio_level(OUT1, chord_value);
     pwm_set_gpio_level(OUT2, values[arpStep]);
     // pwm_set_gpio_level(OUT3, osc[0].getRandom16(1024));
     // gpio_put(LED1, LOW);
@@ -342,6 +347,10 @@ void loop()
     float freq = coarseA * powVOct;
     uint8_t rootTemp = osc[0].getNoteNameIndexFromFreq(freq);
 
+    static double bias = 0.0;
+    bias = (bias * 0.999) + (chord_value * 0.001);
+    bias_avg = bias;
+
     if (rootTemp != rootIndex)
     {
         rootConfirmCount++;
@@ -360,10 +369,6 @@ void loop()
     uint8_t scaleIndex = rootScaleIndexFromSemitone[rootDiff];
     int8_t rootMinus = userConfig.rootMinus * -12;
     int8_t seventhMinus = userConfig.seventhMinus * 12;
-    osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][0] + rootMinus);
-    osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][1]);
-    osc[2].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][2]);
-    osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][3] + seventhMinus);
 
     // arpeggio
     if (gate.isEdgeHigh())
@@ -376,6 +381,14 @@ void loop()
             arpStep = constrainCyclic(arpStep - 1, 0, 3);
         else
             arpStep = osc[0].getRandom16(4);
+    }
+
+    if (userConfig.voctMode == 0 || (userConfig.voctMode == 1 && gate.getValue()))
+    {
+        osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][0] + rootMinus);
+        osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][1]);
+        osc[2].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][2]);
+        osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][3] + seventhMinus);
     }
 
     userConfig.oscACoarse = coarseA;
@@ -514,27 +527,28 @@ void loop()
     // dispCount++;
     // if (dispCount == 0)
     // {
-    //     Serial.print(voct);
-    //     Serial.print(", ");
-    //     Serial.print(cv1Value);
-    //     Serial.print(", ");
-    //     Serial.print(cv2Value);
-    //     Serial.print(", ");
-    //     // Serial.print(digitalRead(GATE));
-    //     // Serial.print(userConfig.voctTune);
+    //     // Serial.print(voct);
     //     // Serial.print(", ");
-    //     Serial.print(coarseA);
-    //     Serial.print(", ");
-    //     Serial.print(freqencyA);
-    //     Serial.print(", ");
-    //     Serial.print(coarseB);
-    //     Serial.print(", ");
-    //     Serial.print(freqencyB);
+    //     // Serial.print(cv1Value);
+    //     // Serial.print(", ");
+    //     // Serial.print(cv2Value);
+    //     // Serial.print(", ");
+    //     // // Serial.print(digitalRead(GATE));
+    //     // // Serial.print(userConfig.voctTune);
+    //     // // Serial.print(", ");
+    //     // Serial.print(coarseA);
+    //     // Serial.print(", ");
+    //     // Serial.print(freqencyA);
+    //     // Serial.print(", ");
+    //     // Serial.print(coarseB);
+    //     // Serial.print(", ");
+    //     // Serial.print(freqencyB);
+    //     Serial.print(bias_avg);
     //     Serial.print(", ");
     //     Serial.println();
     // }
 
-    sleep_us(1000); // 10kHz
+    sleep_us(1000); // 1kHz
     // sleep_ms(1);
 }
 

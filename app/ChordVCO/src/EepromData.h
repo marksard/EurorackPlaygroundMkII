@@ -32,6 +32,8 @@ struct UserConfig
     int16_t arpMode;
     int16_t rootMinus;
     int16_t seventhMinus;
+    int16_t voctMode;
+    int16_t boostLevel;
 };
 
 int startUserConfigAddress = 0;
@@ -50,6 +52,8 @@ void initUserConfig(UserConfig *pUserConfig)
     pUserConfig->arpMode = 0;
     pUserConfig->rootMinus = 1;
     pUserConfig->seventhMinus = 0;
+    pUserConfig->voctMode = 0;
+    pUserConfig->boostLevel = 0;
 }
 
 void loadUserConfig(UserConfig *pUserConfig)

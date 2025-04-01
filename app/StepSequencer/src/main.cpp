@@ -319,7 +319,7 @@ void loop()
     // Serial.print(cv2Value);
     // Serial.println();
 
-    sleep_us(1000);
+    sleep_us(100);
 }
 
 void setup1()

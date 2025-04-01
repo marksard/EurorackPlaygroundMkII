@@ -226,19 +226,12 @@ void setup()
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
 
-    initPWM(OUT1, PWM_RESO, false);
-    initPWM(OUT2, PWM_RESO, false);
-    initPWM(OUT3, PWM_RESO, false);
-    initPWM(OUT4, PWM_RESO, false);
-    initPWM(OUT5, PWM_RESO, false);
-    initPWM(OUT6, PWM_RESO, false);
-
-    uint slice = 0;
-    for (int i = 0; i < 6; ++i)
-    {
-        slice |= 0x01 << pwm_gpio_to_slice_num(pwmOuts[i]);
-    }
-    pwm_set_mask_enabled(slice);
+    initPWM(OUT1, PWM_RESO);
+    initPWM(OUT2, PWM_RESO);
+    initPWM(OUT3, PWM_RESO);
+    initPWM(OUT4, PWM_RESO);
+    initPWM(OUT5, PWM_RESO);
+    initPWM(OUT6, PWM_RESO);
 
     initEEPROM();
     loadUserConfig(&userConfig);
@@ -472,7 +465,7 @@ void loop1()
     gpio_put(LED2, clockCount == 0 ? HIGH : LOW);
 
     dispOLED();
-    // sleep_ms(1);
+    sleep_ms(1);
 
     // static uint8_t dispCount = 0;
     // dispCount++;

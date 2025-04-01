@@ -45,6 +45,7 @@ public:
             _lastMicros = micros();
         }
         _lastValue = value;
+        _lastEdge = edge;
         return edge;
     }
 
@@ -74,6 +75,7 @@ public:
     }
 
     inline bool getValue() { return _lastValue; }
+    inline bool getEdge() { return _lastEdge; }
 
     inline void setPin(byte pin)
     {
@@ -89,6 +91,7 @@ public:
 protected:
     uint8_t _pin;
     uint8_t _lastValue;
+    bool _lastEdge;
     ulong _lastMicros;
     int _duration;
     ulong _aliveTimeMicros;

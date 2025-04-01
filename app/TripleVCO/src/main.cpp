@@ -21,8 +21,8 @@
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
-#define PWM_RESO 4096         // 12bit
-// #define PWM_RESO 1024         // 10bit
+// #define PWM_RESO 4096         // 12bit
+#define PWM_RESO 1024         // 10bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる

@@ -31,9 +31,11 @@ public:
         pinMode(pin1, INPUT_PULLUP);
         pinMode(pin2, INPUT_PULLUP);
 
-        _timePrev = micros();
+        // _timePrev = micros();
+        _timePrev = 0;
         _timeCurrent = _timePrev;
         _holdMode = holdMode;
+        _value = 0;
 
         getDirection(); // 空読みして値をいれておく
     }
@@ -42,6 +44,14 @@ public:
     /// @return 0:none plus:clockwise minus:counter clockwise
     int8_t getDirection(bool accelerate = false)
     {
+        if (micros() < _timePrev + 1000)
+        {
+            if (!_holdMode)
+                _value = 0;
+
+            return _value;
+        }
+
         byte value1, value2;
         getPinValue(&value1, &value2);
         byte state = value1 | (value2 << 1);
@@ -63,8 +73,15 @@ public:
             _value = accelerate ? getDelta() * -1 : -1;
             break;
         default:
+            if (!accelerate)
+            {
+                _timePrev = _timeCurrent;
+                _timeCurrent = micros();
+            }
             if (!_holdMode)
+            {
                 _value = 0;
+            }
             break;
         }
 

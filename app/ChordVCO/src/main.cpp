@@ -19,11 +19,13 @@
 #include "Oscillator.hpp"
 #include "EepromData.h"
 #include "SmoothRandomCV.hpp"
+#include "Quantizer.hpp"
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
 // #define PWM_RESO 4096         // 12bit
-#define PWM_RESO 1024         // 10bit
+#define PWM_RESO 2048         // 11bit
+// #define PWM_RESO 1024         // 10bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
@@ -53,6 +55,7 @@ static bool saveConfirm = false;
 static Oscillator osc[4];
 static float max_coarse_freq = VCO_MAX_COARSE_FREQ;
 static int8_t arpStep = 0;
+static Quantizer quantizer(ADC_RESO);
 
 static uint8_t addRootScale[7][4] = 
 {
@@ -96,22 +99,31 @@ PollingTimeEvent updateOLED;
 const char selCV[][5] = {"---", "CV1", "CV2"};
 const char selOct[][5] = {"---", "12", "24"};
 const char selArp[][5] = {"---", "UP", "DOWN", "RAND"};
-const char selVOctLock[][5] = {"FREE", "GATE"};
+const char selHold[][5] = {"FREE", "GATE"};
 static SmoothRandomCV smoothRand(ADC_RESO);
 
 SettingItem16 commonSettings[] =
 {
     SettingItem16(0, 2, 1, &userConfig.rootMinus, "ROOT: %s", selOct, 3),
     SettingItem16(0, 2, 1, &userConfig.seventhMinus, "7TH: %s", selOct, 3),
-    SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "VCO A Para: %s", selCV, 3),
-    SettingItem16(0, 3, 1, &userConfig.arpMode, "ARP Mode: %s", selArp, 4),
-    SettingItem16(0, 1, 1, &userConfig.voctMode, "V/OCT Mode: %s", selVOctLock, 2),
-    SettingItem16(0, 50, 1, &userConfig.boostLevel, "Boost LVL: %2d", NULL, 0),
-    SettingItem16(-200, 200, 1, &userConfig.voctTune, "Init  VOCT:%4d", NULL, 0)
+    SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "ParamCV: %s", selCV, 3),
+    SettingItem16(0, 3, 1, &userConfig.arpMode, "OUT2 ARP: %s", selArp, 4),
+    SettingItem16(0, 1, 1, &userConfig.voctHold, "HOLD MODE: %s", selHold, 2),
+    SettingItem16(0, 50, 1, &userConfig.boostLevel, "BOOST LVL: %2d", NULL, 0),
+    SettingItem16(-200, 200, 1, &userConfig.voctTune, "INIT VOCT:%4d", NULL, 0)
+};
+
+SettingItem16 quantizerSettings[] =
+{
+    SettingItem16(0, 2, 1, &userConfig.quantizeCV, "INPUT: %s", selCV, 3),
+    SettingItem16(0, quantizer.MaxScales, 1, &userConfig.quantizeScale, "SCALE: %s", quantizer.ScaleNames, quantizer.MaxScales),
+    SettingItem16(1, 5, 1, &userConfig.quantizeOct, "OCT:%2d", NULL, 0),
+    SettingItem16(0, 1, 1, &userConfig.quantizeHold, "HOLD MODE: %s", selHold, 2),
 };
 
 static MenuSection16 menu[] = {
     {"CHORD VCO", commonSettings, sizeof(commonSettings) / sizeof(commonSettings[0])},
+    {"QUANTIZER", quantizerSettings, sizeof(quantizerSettings) / sizeof(quantizerSettings[0])},
 };
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
@@ -225,24 +237,23 @@ void dispOLED()
     u8g2.sendBuffer();
 }
 
-static int16_t bias_avg = 0;
+static int16_t bias = (PWM_RESO / 2) - 1;
 static int16_t chord_value = 0;
 void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
     // gpio_put(LED1, HIGH);
 
-    uint16_t sum = 0;
-    uint16_t values[4] = {0};
+    int16_t sum = 0;
+    int16_t values[4] = {0};
     for (int i = 0; i < 4; ++i)
     {
         values[i] = osc[i].getWaveValue();
-        sum += values[i];
+        sum += values[i] - bias;
     }
 
     // 平均してSQU以外は少しゲインを持ち上げる
-    chord_value = sum >> 2;
-    chord_value -= bias_avg;
+    chord_value = (sum >> 2) + bias;
     if (osc[0].getWave() == Oscillator::Wave::SQU)
     {
         chord_value *= 0.8;
@@ -251,12 +262,11 @@ void interruptPWM()
     {
         chord_value *= (110 + userConfig.boostLevel) * 0.01;
     }
-    chord_value += (int16_t)bias_avg;
-    chord_value = constrain(chord_value, 0, 1024);
+    chord_value = constrain(chord_value, 0, PWM_RESO - 1);
 
     pwm_set_gpio_level(OUT1, chord_value);
     pwm_set_gpio_level(OUT2, values[arpStep]);
-    // pwm_set_gpio_level(OUT3, osc[0].getRandom16(1024));
+    pwm_set_gpio_level(OUT6, osc[0].getRandom16(PWM_RESO));
     // gpio_put(LED1, LOW);
 }
 
@@ -271,7 +281,7 @@ void setup()
     analogReadResolution(12);
 
     pot.init(POT1);
-    enc.init(EC1A, EC1B);
+    enc.init(EC1A, EC1B, true);
     buttons[0].init(BTN1, false);
     buttons[1].init(BTN2, false);
     buttons[2].init(BTN3, false);
@@ -324,17 +334,9 @@ void loop()
 {
     uint16_t potValue = pot.analogRead(true, true);
     int8_t encValue = enc.getDirection();
-    uint8_t btn0 = buttons[0].getState();
-    uint8_t btn1 = buttons[1].getState();
-    uint8_t btn2 = buttons[2].getState();
     uint16_t voct = vOct.analogReadDirectFast();
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
-
-    static float coarseA = userConfig.oscACoarse;
-    static uint16_t lastPotValue = potValue;
-    static uint8_t unlock = 0;
-    static uint8_t lastMenuIndex = 0;
 
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
     float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - userConfig.voctTune, 0, DAC_MAX_MILLVOLT) * 0.001);
@@ -343,13 +345,9 @@ void loop()
 
     static uint8_t rootIndex = 0;
     static uint8_t rootConfirmCount = 0;
-    uint8_t courceIndex = osc[0].getNoteNameIndexFromFreq(coarseA);
-    float freq = coarseA * powVOct;
+    uint8_t courceIndex = osc[0].getNoteNameIndexFromFreq(userConfig.oscACoarse);
+    float freq = userConfig.oscACoarse * powVOct;
     uint8_t rootTemp = osc[0].getNoteNameIndexFromFreq(freq);
-
-    static double bias = 0.0;
-    bias = (bias * 0.999) + (chord_value * 0.001);
-    bias_avg = bias;
 
     if (rootTemp != rootIndex)
     {
@@ -383,7 +381,7 @@ void loop()
             arpStep = osc[0].getRandom16(4);
     }
 
-    if (userConfig.voctMode == 0 || (userConfig.voctMode == 1 && gate.getValue()))
+    if (userConfig.voctHold == 0 || (userConfig.voctHold == 1 && gate.getEdge()))
     {
         osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][0] + rootMinus);
         osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][1]);
@@ -391,10 +389,79 @@ void loop()
         osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][3] + seventhMinus);
     }
 
-    userConfig.oscACoarse = coarseA;
+    if (userConfig.quantizeHold == 0 || (userConfig.quantizeHold == 1 && gate.getEdge()))
+    {
+        if (userConfig.quantizeCV > 0)
+        {
+            quantizer.setScale(userConfig.quantizeScale);
+            uint16_t cv = map(userConfig.quantizeCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO, 0, (7 * userConfig.quantizeOct) + 1);
+            pwm_set_gpio_level(OUT5, quantizer.Quantize(cv));
+        }
+    }
+
+    // OSCA CVでパラメータ変更
+    if (userConfig.oscAParaCV > 0)
+    {
+        int16_t shift = map(userConfig.oscAParaCV == 1 ? cv1Value : cv2Value, 0, 4096, 0, 50);
+        requiresUpdate |= osc[0].setFolding(shift) & (menuIndex == 0);
+        requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
+    }
+
+    // max_coarse_freq = (float)VCO_MAX_COARSE_FREQ;
+
+    // static uint8_t dispCount = 0;
+    // dispCount++;
+    // if (dispCount == 0)
+    // {
+    //     // Serial.print(voct);
+    //     // Serial.print(", ");
+    //     // Serial.print(cv1Value);
+    //     // Serial.print(", ");
+    //     // Serial.print(cv2Value);
+    //     // Serial.print(", ");
+    //     // // Serial.print(digitalRead(GATE));
+    //     // // Serial.print(userConfig.voctTune);
+    //     // // Serial.print(", ");
+    //     // Serial.print(coarseA);
+    //     // Serial.print(", ");
+    //     // Serial.print(freqencyA);
+    //     // Serial.print(", ");
+    //     // Serial.print(coarseB);
+    //     // Serial.print(", ");
+    //     // Serial.print(freqencyB);
+    //     Serial.print(bias_avg);
+    //     Serial.print(", ");
+    //     Serial.println();
+    // }
+
+    sleep_us(100); // 10kHz
+    // sleep_ms(1);
+}
+
+void setup1()
+{
+    initOLED();
+    updateOLED.setMills(33);
+    updateOLED.start();
+}
+
+void loop1()
+{
+    uint16_t potValue = pot.getValue();
+    int8_t encValue = enc.getValue();
+    uint8_t btn0 = buttons[0].getState();
+    uint8_t btn1 = buttons[1].getState();
+    uint8_t btn2 = buttons[2].getState();
+    uint16_t voct = vOct.getValue();
+    int16_t cv1Value = cv1.getValue();
+    int16_t cv2Value = cv2.getValue();
+
+    static uint16_t lastPotValue = potValue;
+    static uint8_t unlock = 0;
+    static uint8_t lastMenuIndex = 0;
 
     pwm_set_gpio_level(LED1, cv1Value);
-    pwm_set_gpio_level(LED2, cv2Value);
+    pwm_set_gpio_level(LED2, gate.getValue());
 
     // requiresUpdate |= updateMenuIndex(btn0, btn1);
     if (btn2 == 2)
@@ -454,7 +521,7 @@ void loop()
     case 0:
         if (unlock)
         {
-            coarseA = EXP_CURVE((float)potValue, 2.0) * max_coarse_freq;
+            userConfig.oscACoarse = EXP_CURVE((float)potValue, 2.0) * max_coarse_freq;
         }
         for (int i = 0; i < 4; ++i)
         {
@@ -462,10 +529,10 @@ void loop()
             if (btn0 != 3)
             {
                 // OLED描画更新でノイズが乗るので必要時以外更新しない
-                requiresUpdate |= osc[i].setNoteNameFromFrequency(coarseA);
+                requiresUpdate |= osc[i].setNoteNameFromFrequency(userConfig.oscACoarse);
                 requiresUpdate |= osc[i].setWave((Oscillator::Wave)
                                                     constrainCyclic((int)osc[i].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
-                requiresUpdate |= osc[i].setFreqName(coarseA);
+                requiresUpdate |= osc[i].setFreqName(userConfig.oscACoarse);
 
                 userConfig.oscAWave = osc[i].getWave();
             }
@@ -513,54 +580,6 @@ void loop()
         }
     }
 
-    // OSCA CVでパラメータ変更
-    if (userConfig.oscAParaCV > 0)
-    {
-        int16_t shift = map(userConfig.oscAParaCV == 1 ? cv1Value : cv2Value, 0, 4096, 0, 50);
-        requiresUpdate |= osc[0].setFolding(shift) & (menuIndex == 0);
-        requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
-    }
-
-    // max_coarse_freq = (float)VCO_MAX_COARSE_FREQ;
-
-    // static uint8_t dispCount = 0;
-    // dispCount++;
-    // if (dispCount == 0)
-    // {
-    //     // Serial.print(voct);
-    //     // Serial.print(", ");
-    //     // Serial.print(cv1Value);
-    //     // Serial.print(", ");
-    //     // Serial.print(cv2Value);
-    //     // Serial.print(", ");
-    //     // // Serial.print(digitalRead(GATE));
-    //     // // Serial.print(userConfig.voctTune);
-    //     // // Serial.print(", ");
-    //     // Serial.print(coarseA);
-    //     // Serial.print(", ");
-    //     // Serial.print(freqencyA);
-    //     // Serial.print(", ");
-    //     // Serial.print(coarseB);
-    //     // Serial.print(", ");
-    //     // Serial.print(freqencyB);
-    //     Serial.print(bias_avg);
-    //     Serial.print(", ");
-    //     Serial.println();
-    // }
-
-    sleep_us(1000); // 1kHz
-    // sleep_ms(1);
-}
-
-void setup1()
-{
-    initOLED();
-    updateOLED.setMills(33);
-    updateOLED.start();
-}
-
-void loop1()
-{
     if (!updateOLED.ready())
     {
         sleep_ms(1);
@@ -568,4 +587,5 @@ void loop1()
     }
 
     dispOLED();
+    sleep_ms(1);
 }

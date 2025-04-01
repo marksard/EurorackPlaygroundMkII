@@ -32,8 +32,12 @@ struct UserConfig
     int16_t arpMode;
     int16_t rootMinus;
     int16_t seventhMinus;
-    int16_t voctMode;
+    int16_t voctHold;
     int16_t boostLevel;
+    int16_t quantizeCV;
+    int16_t quantizeScale;
+    int16_t quantizeOct;
+    int16_t quantizeHold;
 };
 
 int startUserConfigAddress = 0;
@@ -52,8 +56,12 @@ void initUserConfig(UserConfig *pUserConfig)
     pUserConfig->arpMode = 0;
     pUserConfig->rootMinus = 1;
     pUserConfig->seventhMinus = 0;
-    pUserConfig->voctMode = 0;
+    pUserConfig->voctHold = 0;
     pUserConfig->boostLevel = 0;
+    pUserConfig->quantizeCV = 1;
+    pUserConfig->quantizeScale = 5;
+    pUserConfig->quantizeOct = 3;
+    pUserConfig->quantizeHold = 1;
 }
 
 void loadUserConfig(UserConfig *pUserConfig)

@@ -12,7 +12,7 @@
 #define WAVE_LENGTH 4096
 #define WAVE_LENGTH_BIT 12
 
-#define bit_10
+#define bit_11
 #ifdef bit_10
 #include "wavetable/sine_10bit_4096.h"
 #define WAVE_INDEX_DIV_BIT 2 // WAVE_LENGTH_BIT - WAVE_HEIGHT
@@ -28,7 +28,7 @@
 #endif
 
 #define WAVE_HEIGHT_BIT (WAVE_LENGTH_BIT - WAVE_INDEX_DIV_BIT)
-#define FOLD_TRI_MAX ((WAVE_HEIGHT >> 1) - (WAVE_HEIGHT >> 3))
+#define FOLD_TRI_MAX ((WAVE_HEIGHT >> 1) - (WAVE_HEIGHT >> 4))
 
 #define OSC_WAVE_BIT 32
 #define OSC_WAVE_BIT32 4294967296 // 2^32

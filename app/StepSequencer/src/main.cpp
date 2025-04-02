@@ -307,7 +307,7 @@ void loop()
         cv = map(cv1Value, 0, ADC_RESO - 1, 0, (7 * userConfig.shIntOctMax));
     }
     else {
-        cv = map(internalLFOValue, 0, ADC_RESO - 1, 0, (7 * userConfig.shIntOctMax));
+        cv = map(internalLFOValue, 0, PWM_RESO - 1, 0, (7 * userConfig.shIntOctMax));
     }
     uint8_t oct = cv / 7;
     uint8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);

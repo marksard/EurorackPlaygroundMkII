@@ -25,7 +25,9 @@
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
-#define PWM_RESO 4096         // 12bit
+// #define PWM_RESO 4096         // 12bit
+#define PWM_RESO 2048         // 11bit
+// #define PWM_RESO 1024         // 10bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
@@ -46,7 +48,7 @@ static SmoothAnalogRead cv2;
 static UserConfig userConfig;
 static bool saveConfirm = false;
 
-static StepSeqPlayControl sspc(&u8g2);
+static StepSeqPlayControl sspc(&u8g2, PWM_RESO);
 static Euclidean euclid;
 static EuclideanDisp euclidDisp;
 static TriggerOut euclidTrig;
@@ -302,10 +304,10 @@ void loop()
     int16_t cv = 0;
     if (userConfig.shSource)
     {
-        cv = map(cv1Value, 0, 4096, 0, 36);
+        cv = map(cv1Value, 0, ADC_RESO - 1, 0, (7 * userConfig.shIntOctMax));
     }
     else {
-        cv = map(internalLFOValue, 0, 4096, 0, (7 * userConfig.shIntOctMax) + 1);
+        cv = map(internalLFOValue, 0, ADC_RESO - 1, 0, (7 * userConfig.shIntOctMax));
     }
     uint8_t oct = cv / 7;
     uint8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
@@ -389,7 +391,7 @@ void loop1()
         encValue = 0;
     }
 
-    uint8_t step = map(potValue, 0, 4095, 0, 15);
+    uint8_t step = map(potValue, 0, ADC_RESO - 1, 0, 15);
     sspc.setSettingPos(step);
 
     // ec長押しで設定保存

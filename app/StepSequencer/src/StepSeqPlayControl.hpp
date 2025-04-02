@@ -25,11 +25,12 @@ public:
         IGNORE,
     };
 
-    const float VoltPerTone = 4095.0 / 12.0 / 5.0;
+    const float VoltPerTone;
 
 public:
-    StepSeqPlayControl(U8G2 *pU8g2)
-        : _ssm(), _ssv(pU8g2, 0, 16)
+    StepSeqPlayControl(U8G2 *pU8g2, uint16_t pwmReso)
+        : VoltPerTone((float)(pwmReso) / 12.0 / 5.0)
+        , _ssm(), _ssv(pU8g2, 0, 16)
         , _settingPos(DEF_MAX_STEP_M1, 0, DEF_MAX_STEP_M1)
         , _octUnder(-1, 4, -1, 4)
         , _octUpper(-1, 4, -1, 4)

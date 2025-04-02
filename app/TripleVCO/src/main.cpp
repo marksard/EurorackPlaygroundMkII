@@ -22,7 +22,8 @@
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
 // #define PWM_RESO 4096         // 12bit
-#define PWM_RESO 1024         // 10bit
+#define PWM_RESO 2048         // 11bit
+// #define PWM_RESO 1024         // 10bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
@@ -303,9 +304,9 @@ void loop()
     static uint8_t lastMenuIndex = 0;
 
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
-    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - userConfig.voctTune, 0, DAC_MAX_MILLVOLT) * 0.001);
-    float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - userConfig.voctTune, 0, DAC_MAX_MILLVOLT) * 0.001);
-    float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - userConfig.voctTune, 0, DAC_MAX_MILLVOLT) * 0.001);
+    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
+    float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
+    float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
 
     float freqencyA = max(coarseA * powVOct, 0.01);
     float selVoctB = 1;
@@ -495,7 +496,7 @@ void loop()
     // OSCB CVで波形変更
     if (userConfig.oscBWaveCV > 0)
     {
-        int16_t shift = map(userConfig.oscBWaveCV == 1 ? cv1Value : cv2Value, 0, 4096, (int)Oscillator::Wave::SQU, (int)Oscillator::Wave::NOISE + 1);
+        int16_t shift = map(userConfig.oscBWaveCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, (int)Oscillator::Wave::SQU, (int)Oscillator::Wave::NOISE + 1);
         // requiresUpdate |= osc[0].setWave((Oscillator::Wave)shift);
         requiresUpdate |= osc[1].setWave((Oscillator::Wave)shift) & (menuIndex == 1);
     }
@@ -503,7 +504,7 @@ void loop()
     // OSCA CVでパラメータ変更
     if (userConfig.oscAParaCV > 0)
     {
-        int16_t shift = map(userConfig.oscAParaCV == 1 ? cv1Value : cv2Value, 0, 4096, 0, 50);
+        int16_t shift = map(userConfig.oscAParaCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, 50);
         requiresUpdate |= osc[0].setFolding(shift) & (menuIndex == 0);
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }

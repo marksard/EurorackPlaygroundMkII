@@ -351,7 +351,7 @@ void loop()
 void setup1()
 {
     initOLED();
-    updateOLED.setMills(60); // = 60sec / (250bpm * 4ppq)
+    updateOLED.setMills(33);
     updateOLED.start();
 }
 

@@ -7,9 +7,9 @@
 class Quantizer
 {
 public:
-    Quantizer(uint16_t adcReso)
-    : VoltPerTone((float)(adcReso) / 12.0 / 5.0)
-    , _adcReso(adcReso)
+    Quantizer(uint16_t pwmReso)
+    : VoltPerTone((float)(pwmReso) / 12.0 / 5.0)
+    , _pwmReso(pwmReso)
     , _scaleIndex(0)
     {
     }
@@ -52,6 +52,6 @@ public:
     };
 
 private:
-    uint16_t _adcReso;
+    uint16_t _pwmReso;
     uint8_t _scaleIndex;
 };

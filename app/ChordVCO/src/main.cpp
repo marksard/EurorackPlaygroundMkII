@@ -16,10 +16,10 @@
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
 #include "../../commonlib/common/pwm_wrapper.h"
+#include "../../commonlib/common/Quantizer.hpp"
 #include "Oscillator.hpp"
 #include "EepromData.h"
 #include "SmoothRandomCV.hpp"
-#include "Quantizer.hpp"
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
@@ -55,7 +55,7 @@ static bool saveConfirm = false;
 static Oscillator osc[4];
 static float max_coarse_freq = VCO_MAX_COARSE_FREQ;
 static int8_t arpStep = 0;
-static Quantizer quantizer(ADC_RESO);
+static Quantizer quantizer(PWM_RESO);
 
 static uint8_t addRootScale[7][4] = 
 {
@@ -394,7 +394,7 @@ void loop()
         if (userConfig.quantizeCV > 0)
         {
             quantizer.setScale(userConfig.quantizeScale);
-            uint16_t cv = map(userConfig.quantizeCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO, 0, (7 * userConfig.quantizeOct) + 1);
+            uint16_t cv = map(userConfig.quantizeCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, (7 * userConfig.quantizeOct));
             pwm_set_gpio_level(OUT5, quantizer.Quantize(cv));
         }
     }
@@ -402,7 +402,7 @@ void loop()
     // OSCA CVでパラメータ変更
     if (userConfig.oscAParaCV > 0)
     {
-        int16_t shift = map(userConfig.oscAParaCV == 1 ? cv1Value : cv2Value, 0, 4096, 0, 50);
+        int16_t shift = map(userConfig.oscAParaCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, 50);
         requiresUpdate |= osc[0].setFolding(shift) & (menuIndex == 0);
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }

@@ -339,9 +339,7 @@ void loop()
     int16_t cv2Value = cv2.analogReadDirectFast();
 
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
-    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - userConfig.voctTune, 0, DAC_MAX_MILLVOLT) * 0.001);
-    // float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - userConfig.voctTune, 0, DAC_MAX_MILLVOLT) * 0.001);
-    // float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - userConfig.voctTune, 0, DAC_MAX_MILLVOLT) * 0.001);
+    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
 
     static uint8_t rootIndex = 0;
     static uint8_t rootConfirmCount = 0;
@@ -441,7 +439,7 @@ void loop()
 void setup1()
 {
     initOLED();
-    updateOLED.setMills(33);
+    updateOLED.setMills(50);
     updateOLED.start();
 }
 

@@ -138,12 +138,12 @@ public:
             value = applyPhaseShift(value, indexHeight, indexPhase);
             break;
         case Wave::MUL_TRI:
-            {
-                value = getTriangle(index, indexHeight);
-                uint16_t value2 = getTriangle(index, indexPhase);
-                value = ((value * value2) >> WAVE_HEIGHT_BIT) % WAVE_HEIGHT;
-            }
-            break;
+        {
+            value = getTriangle(index, indexHeight);
+            uint16_t value2 = getTriangle(index, indexPhase);
+            value = ((value * value2) >> WAVE_HEIGHT_BIT) % WAVE_HEIGHT;
+        }
+        break;
         case Wave::TRI:
             value = getTriangle(index, indexHeight);
             if (_isFolding)
@@ -303,18 +303,18 @@ private:
     inline uint16_t getTriangle(uint32_t index, uint32_t indexHeight)
     {
         return index < _widthHalf ? (indexHeight << 1) : ((_heightM1 - indexHeight) << 1);
-    } 
+    }
 
     uint16_t applyPhaseShift(uint16_t value, uint32_t indexHeight, uint32_t indexPhase)
     {
         // Phase shift with normalize. (Not exact, but light.)
         uint16_t sum = indexHeight + indexPhase;
         uint16_t diff = abs((long)indexHeight - (long)indexPhase) % _heightHalf;
-        return map(sum, 
-                    diff,
-                    WAVE_HEIGHT,
-                    0,
-                    _heightHalf);
+        return map(sum,
+                   diff,
+                   _heightM1,
+                   0,
+                   _heightHalf - 1);
     }
 
     // Light-weight Wavefolder

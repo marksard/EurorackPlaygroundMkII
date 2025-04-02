@@ -11,10 +11,13 @@
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
 #include "../../commonlib/common/pwm_wrapper.h"
+#include "../../commonlib/common/Quantizer.hpp"
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
-#define PWM_RESO 4096         // 12bit
+// #define PWM_RESO 4096         // 12bit
+#define PWM_RESO 2048         // 11bit
+// #define PWM_RESO 1024         // 10bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
@@ -38,27 +41,7 @@ int16_t r2rScale = 5;
 int16_t r2rOctMax = 2;
 volatile bool dataInEdge = false;
 volatile bool clockInEdge = false;
-
-#define MAX_SCALE_KEY 7
-#define MAX_SCALES 10
-#define MAX_SCALES_M1 (MAX_SCALES - 1)
-
-// スケール
-static const uint8_t scales[MAX_SCALES][MAX_SCALE_KEY] =
-    {
-        {0, 2, 4, 5, 7, 9, 11}, // ionian / major
-        {0, 2, 3, 5, 7, 9, 10}, // dorian
-        {0, 1, 3, 5, 7, 8, 10}, // phrygian
-        {0, 2, 4, 6, 7, 9, 11}, // lydian
-        {0, 2, 4, 5, 7, 9, 10}, // mixolydian
-        {0, 2, 3, 5, 7, 8, 10}, // aeolian / natural minor
-        {0, 1, 3, 5, 6, 8, 10}, // locrian
-        {0, 2, 3, 4, 7, 9,  0}, // m.blues
-        {0, 1, 4, 5, 7, 8, 10}, // spanish
-        {0, 2, 4, 7, 9, 0,  2}, // luoyin
-};
-const float VoltPerTone = 4095.0 / 12.0 / 5.0;
-static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"};
+static Quantizer quantizer(PWM_RESO);
 
 // 画面周り
 #define MENU_MAX (SEQUENCER_TOTAL + 1)
@@ -83,7 +66,7 @@ SettingItem16 shiftResisterSettings[] =
 
 SettingItem16 r2rSettings[] =
 {
-    SettingItem16(0, 10, 1, &r2rScale, "SCALE: %s", scaleNames, 10),
+    SettingItem16(0, 10, 1, &r2rScale, "SCALE: %s", quantizer.ScaleNames, quantizer.MaxScales),
     SettingItem16(1, 5, 1, &r2rOctMax, "OCT:%2d", NULL, 0),
 };
 
@@ -193,12 +176,9 @@ void loop()
         }
 
         // quantizer
-        uint16_t cv = 0;
-        cv = map(r2rOut, 0, 255, 0, (7 * r2rOctMax) + 1);
-        uint8_t oct = cv / 7;
-        uint8_t semi = scales[r2rScale][cv % 7];
-        r2rOut = ((oct * 12) + semi) * VoltPerTone;
-        pwm_set_gpio_level(OUT6, r2rOut);
+        quantizer.setScale(r2rScale);
+        uint16_t cv = map(r2rOut, 0, 255, 0, (7 * r2rOctMax));
+        pwm_set_gpio_level(OUT6, quantizer.Quantize(cv));
     }
 
     sleep_us(100);

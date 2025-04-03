@@ -66,6 +66,7 @@ static const char scaleNames[][5] = {"maj", "dor", "phr", "lyd", "mix", "min", "
 static const char seqSyncModes[][5] = {"INT", "GATE"};
 static const char shTriggers[][5] = {"CLK", "EUC"};
 static const char shSources[][5] = {"INT", "CV1"};
+static const char euclidOnsetsSources[][5] = {"---", "CV2"};
 
 static const char euclidSyncDivsStr[][5] = {"1", "2", "3", "4", "8", "16"};
 static const char euclidSyncDivs[] = {1, 2, 3, 4, 8, 16};
@@ -93,6 +94,7 @@ SettingItem16 euclidSettings[] =
     SettingItem16(-16, 16, 1, &userConfig.euclidPos, "POS:%d", NULL, 0),
     SettingItem16(0, 16, 1, &userConfig.euclidOnsets, " ON:%2d", NULL, 0),
     SettingItem16(1, 16, 1, &userConfig.euclidStepSize, "STP:%2d", NULL, 0),
+    SettingItem16(0, 1, 1, &userConfig.euclidOnsetsSource, "SRC:%s", euclidOnsetsSources, 2),
 };
 
 SettingItem16 shettings[] =
@@ -309,9 +311,29 @@ void loop()
     else {
         cv = map(internalLFOValue, 0, PWM_RESO - 1, 0, (7 * userConfig.shIntOctMax));
     }
+
     uint8_t oct = cv / 7;
     uint8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
     quantizeOut = ((oct * 12) + semi) * sspc.VoltPerTone;
+
+    static bool permitChange = true;
+    if (userConfig.euclidOnsetsSource)
+    {
+        if (euclid.getCurrent() == euclid.getStartPos() && permitChange == true)
+        {
+            userConfig.euclidOnsets = map(cv2Value, 0, ADC_RESO - 1, 0, 15);
+            if (euclid.generate(userConfig.euclidOnsets, userConfig.euclidStepSize))
+            {
+                euclidDisp.generateCircle(euclid.getStepSize());
+                requiresUpdate = true;
+                permitChange = false;
+            }
+        }
+        else if (euclid.getCurrent() == 1)
+        {
+            permitChange = true;
+        }
+    }
 
     int length = sspc.getStepDulation();
     euclidTrig.setDuration(length >> 1);

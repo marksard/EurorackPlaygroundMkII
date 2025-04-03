@@ -39,6 +39,7 @@ struct UserConfig
     int16_t euclidSyncDiv;
     int16_t euclidOnsets;
     int16_t euclidStepSize;
+    int16_t euclidOnsetsSource;
     // sample and hold
     int16_t shTrigger;
     int16_t shSource;
@@ -66,6 +67,7 @@ void initUserConfig(UserConfig *pUserConfig)
     pUserConfig->euclidSyncDiv = 0;
     pUserConfig->euclidOnsets = 4;
     pUserConfig->euclidStepSize = 16;
+    pUserConfig->euclidOnsetsSource = 0;
     pUserConfig->shTrigger = 1;
     pUserConfig->shSource = 0;
     pUserConfig->shIntOctMax = 3;

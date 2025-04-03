@@ -44,20 +44,44 @@ public:
     /// @return 0:none plus:clockwise minus:counter clockwise
     int8_t getDirection(bool accelerate = false)
     {
+        static byte stateHistory[4] = {0}; // 状態履歴を保持
+        static byte historyIndex = 0;     // 履歴のインデックス
+    
         if (micros() < _timePrev + 1000)
         {
             if (!_holdMode)
                 _value = 0;
-
+    
             return _value;
         }
-
+    
         byte value1, value2;
         getPinValue(&value1, &value2);
         byte state = value1 | (value2 << 1);
+    
+        // 状態履歴を更新
+        stateHistory[historyIndex] = state;
+        historyIndex = (historyIndex + 1) % 4;
+    
+        // 状態履歴がすべて同じ場合のみ処理を進める
+        bool stable = true;
+        for (byte i = 1; i < 4; ++i)
+        {
+            if (stateHistory[i] != stateHistory[0])
+            {
+                stable = false;
+                break;
+            }
+        }
+    
+        if (!stable)
+        {
+            return _value; // 状態が安定していない場合は値を更新しない
+        }
+    
         _index = (_index << 2) + (state & 3);
         _index &= 15;
-
+    
         switch (_index)
         {
         case 0xd:
@@ -84,7 +108,7 @@ public:
             }
             break;
         }
-
+    
         return _value;
     }
 

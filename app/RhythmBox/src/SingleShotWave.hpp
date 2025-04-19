@@ -80,12 +80,12 @@ template <typename vs = int16_t>
 class SingleShotWave
 {
 public:
-    SingleShotWave(const vs wave[], uint32_t waveLength)
+    SingleShotWave(const vs wave[], uint32_t waveLength, bool useInnerBias = false)
     {
-        init(wave, waveLength);
+        init(wave, waveLength, useInnerBias);
     }
 
-    void init(const vs wave[], uint32_t waveLength)
+    void init(const vs wave[], uint32_t waveLength, bool useInnerBias = false)
     {
         _pWave = wave;
         _waveLength = waveLength;
@@ -93,7 +93,7 @@ public:
         _waveIndex = 0.0;
         _pitch = 1.0;
         _volume = 1.0;
-        _bias = 1024;
+        _bias = useInnerBias ? 1024 : 0;
         _decayIndex = 0.0;
         _decayValue = 0;
         _lastEdge = 0;

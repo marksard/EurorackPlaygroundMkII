@@ -80,16 +80,18 @@ typedef struct
     SettingItemF items[24];
 } SettingMenu;
 
+const char selMute[][5] = {"----", "MUTE"};
+const char selPan[][5] = {"L2", "L1", "C", "R1", "R2"};
 const char selTrigger[][5] = {"INT", "VOCT", "CV1", "CV2"};
 
-SettingItemF trigSettings[] =
+SettingItemF muteSettings[] =
 {
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[0], "RC: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[1], "HH: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[2], "LT: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[3], "RM: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[4], "SD: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[5], "BD: %s", selTrigger, 4),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[0], "RC: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[1], "HH: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[2], "LT: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[3], "RM: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[4], "SD: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[5], "BD: %s", selMute, 2),
 };
 
 SettingItemF volumeSettings[] =
@@ -100,6 +102,16 @@ SettingItemF volumeSettings[] =
     SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[3], "RM: %4.2f", NULL, 0),
     SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[4], "SD: %4.2f", NULL, 0),
     SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[5], "BD: %4.2f", NULL, 0),
+};
+
+SettingItemF panSettings[] =
+{
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[0], "RC: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[1], "HH: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[2], "LT: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[3], "RM: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[4], "SD: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[5], "BD: %s", selPan, 5),
 };
 
 SettingItemF decaySettings[] =
@@ -122,11 +134,23 @@ SettingItemF pitchSettings[] =
     SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[5], "BD: %4.2f", NULL, 0),
 };
 
+SettingItemF trigSettings[] =
+{
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[0], "RC: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[1], "HH: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[2], "LT: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[3], "RM: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[4], "SD: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[5], "BD: %s", selTrigger, 4),
+};
+
 static MenuSectionF menu[] = {
-    {"TRIGGER", trigSettings, sizeof(trigSettings) / sizeof(trigSettings[0])},
+    {"MUTE", muteSettings, sizeof(muteSettings) / sizeof(muteSettings[0])},
     {"VOLUME", volumeSettings, sizeof(volumeSettings) / sizeof(volumeSettings[0])},
+    {"PAN", panSettings, sizeof(panSettings) / sizeof(panSettings[0])},
     {"DECAY", decaySettings, sizeof(decaySettings) / sizeof(decaySettings[0])},
-    {"PITCH", pitchSettings, sizeof(pitchSettings) / sizeof(pitchSettings[0])}
+    {"PITCH", pitchSettings, sizeof(pitchSettings) / sizeof(pitchSettings[0])},
+    {"TRIGGER", trigSettings, sizeof(trigSettings) / sizeof(trigSettings[0])},
 };
 
 static MenuControlF menuControl(menu, sizeof(menu) / sizeof(menu[0]));
@@ -194,10 +218,21 @@ void interruptPWM()
     pwm_clear_irq(interruptSliceNum);
     // gpio_put(LED1, HIGH);
 
+    int16_t levelL = 0;
+    int16_t levelR = 0;
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
-        pwm_set_gpio_level(pwmOuts[i], pKit[i]->updateWave());
+        int16_t level = pKit[i]->updateWave();
+        uint16_t pan = (uint16_t)userConfig.pans[i];
+        uint16_t panL = pan <= 2 ? 0 : pan - 2;
+        uint16_t panR = pan >= 2 ? 0 : 2 - pan;
+        levelL += level >> panL;
+        levelR += level >> panR;
     }
+    levelL = levelL >> 1;
+    levelR = levelR >> 1;
+    pwm_set_gpio_level(OUT1, levelL + 1024);
+    pwm_set_gpio_level(OUT2, levelR + 1024);
 
     // gpio_put(LED1, LOW);
 }
@@ -281,8 +316,8 @@ void loop()
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
         pKit[i]->setSpeed(userConfig.pitches[i]);
-        pKit[i]->updateDecay(userConfig.decays[i]);
         pKit[i]->setVolume(userConfig.volumes[i]);
+        pKit[i]->updateDecay(userConfig.decays[i]);
         if (userConfig.triggers[i] == 1)
         {
             pKit[i]->play(voctValue);
@@ -450,13 +485,13 @@ void loop1()
         }
         else
         {
-            pKit[mute]->setMute(false);
+            pKit[mute]->setMute(userConfig.mutes[mute] > 0.8 ? true : false);
         }
     }
 
     if (!updateOLED.ready())
     {
-        sleep_ms(1);
+        // sleep_ms(1);
         return;
     }
 
@@ -465,7 +500,7 @@ void loop1()
     gpio_put(LED2, clockCount == 0 ? HIGH : LOW);
 
     dispOLED();
-    sleep_ms(1);
+    // sleep_ms(1);
 
     // static uint8_t dispCount = 0;
     // dispCount++;

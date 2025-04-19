@@ -20,7 +20,7 @@ void initEEPROM()
 }
 
 // 設定値系
-const static char *UI_VER = "rytsq_conf_000";
+const static char *UI_VER = "rytsq_conf_005";
 struct UserConfig
 {
     char ver[15];
@@ -30,6 +30,8 @@ struct UserConfig
     float decays[SEQUENCER_TOTAL];
     float volumes[SEQUENCER_TOTAL];
     float triggers[SEQUENCER_TOTAL];
+    float pans[SEQUENCER_TOTAL];
+    float mutes[SEQUENCER_TOTAL];
 };
 
 int startUserConfigAddress = 0;
@@ -50,6 +52,7 @@ void initUserConfig(UserConfig *pUserConfig)
         pUserConfig->pitches[i] = 1.0;
         pUserConfig->decays[i] = 1.0;
         pUserConfig->triggers[i] = 0;
+        pUserConfig->mutes[i] = 0;
     }
     pUserConfig->volumes[0] = 0.7;
     pUserConfig->volumes[1] = 1.0;
@@ -57,6 +60,12 @@ void initUserConfig(UserConfig *pUserConfig)
     pUserConfig->volumes[3] = 0.8;
     pUserConfig->volumes[4] = 1.0;
     pUserConfig->volumes[5] = 1.0;
+    pUserConfig->pans[0] = 4;
+    pUserConfig->pans[1] = 0;
+    pUserConfig->pans[2] = 3;
+    pUserConfig->pans[3] = 1;
+    pUserConfig->pans[4] = 2;
+    pUserConfig->pans[5] = 2;
 }
 
 void loadUserConfig(UserConfig *pUserConfig)

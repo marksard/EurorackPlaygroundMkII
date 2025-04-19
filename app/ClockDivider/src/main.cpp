@@ -139,7 +139,7 @@ void setup()
     analogReadResolution(12);
 
     pot.init(POT1);
-    enc.init(EC1A, EC1B);
+    enc.init(EC1A, EC1B, true);
     buttons[0].init(BTN1);
     buttons[1].init(BTN2);
     buttons[2].init(BTN3);
@@ -169,6 +169,7 @@ void setup()
 
 void loop()
 {
+    int8_t encValue = enc.getDirection();
     uint16_t voct = vOct.analogReadDirect();
     int16_t cv1Value = cv1.analogReadDirect();
     uint16_t cv2Value = cv2.analogReadDirect();
@@ -216,6 +217,8 @@ void loop()
     // Serial.print(gateValue);
     // Serial.println();
     // }
+
+    sleep_us(100);
 }
 
 void setup1()
@@ -226,7 +229,8 @@ void setup1()
 void loop1()
 {
     // uint16_t potValue = pot.analogReadDropLow4bit();
-    int8_t encValue = enc.getDirection();
+    // int8_t encValue = enc.getDirection();
+    int8_t encValue = enc.getValue();
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();

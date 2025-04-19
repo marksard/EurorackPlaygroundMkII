@@ -439,7 +439,7 @@ void loop()
 void setup1()
 {
     initOLED();
-    updateOLED.setMills(50);
+    updateOLED.setMills(33);
     updateOLED.start();
 }
 
@@ -585,5 +585,5 @@ void loop1()
     }
 
     dispOLED();
-    sleep_ms(1);
+    // sleep_ms(1);
 }

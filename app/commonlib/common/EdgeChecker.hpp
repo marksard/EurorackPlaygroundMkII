@@ -17,14 +17,13 @@ public:
     {
         init(pin, aliveTimeMillis);
     }
-    
+
     /// @brief ピン設定
     /// @param pin
     void init(uint8_t pin, ulong aliveTimeMillis = 1000)
     {
-        _aliveTimeMicros = aliveTimeMillis * 1000;
-        pinMode(pin, INPUT);
         setPin(pin);
+        _aliveTimeMicros = aliveTimeMillis * 1000;
         // 空読み
         for(int i = 0; i < 8; ++i)
         {
@@ -32,32 +31,37 @@ public:
         }
     }
 
-    /// @brief 立上がりエッジ検出
-    /// @return 
-    inline bool isEdgeHigh()
+    /// @brief ピン設定
+    /// @param pin
+    void init(uint8_t pin, gpio_irq_callback_t callback, ulong aliveTimeMillis = 1000)
     {
-        uint8_t value = readPin();
+        setPin(pin);
+        _aliveTimeMicros = aliveTimeMillis * 1000;
+        gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_LEVEL_HIGH | GPIO_IRQ_EDGE_FALL, true, callback);
+    }
+
+    inline bool updateEdge(uint8_t value)
+    {
         bool edge = 0;
         if (value != 0 && _lastValue == 0)
         {
+            ulong now = micros();
             edge = true;
-            _duration = micros() - _lastMicros;
-            _lastMicros = micros();
+            _duration = now - _lastMicros;
+            _lastMicros = now;
         }
         _lastValue = value;
         _lastEdge = edge;
         return edge;
     }
 
-    /// @brief 立下がりエッジ検出
+    /// @brief 立上がりエッジ検出
     /// @return 
-    // inline bool isEdgeLow()
-    // {
-    //     uint8_t value = readPin();
-    //     bool edge = value == 0 && _lastValue != 0 ? true : false;
-    //     _lastValue = value;
-    //     return edge;
-    // }
+    inline bool isEdgeHigh()
+    {
+        uint8_t value = readPin();
+        return updateEdge(value);
+    }
 
     inline uint16_t getBPM(byte bpmReso = 4)
     {
@@ -101,6 +105,5 @@ protected:
     virtual uint8_t readPin()
     {
         return gpio_get(_pin);
-        // return digitalRead(_pin);
     }
 };

@@ -46,6 +46,9 @@ public:
         }
     }
 
+    /// @brief トリガーゲート取得
+    /// @param status トリガー状態 (0 or 1)
+    /// @param triggerMode トリガーモード (0：statusそのまま出力 1：トリガー出力)
     inline int getTriggerGate(int status, int triggerMode)
     {
         // Serial.print(status);
@@ -108,6 +111,5 @@ protected:
     virtual void writePin(int status)
     {
         gpio_put(_pin, status);
-        // digitalWrite(_pin, status);
     }
 };

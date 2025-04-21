@@ -16,6 +16,7 @@
 #include "../../commonlib/common/EdgeChecker.hpp"
 #include "../../commonlib/common/TriggerOut.hpp"
 #include "../../commonlib/common/Quantizer.hpp"
+#include "../../commonlib/common/Euclidean.hpp"
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
@@ -66,6 +67,13 @@ int8_t r2rScaleIndex[] = {0, 5, 7};
 static uint8_t r2rScaleIndexSize = sizeof(r2rScaleIndex) / sizeof(r2rScaleIndex[0]);
 uint8_t r2rOctMax = 2;
 static Quantizer quantizer(PWM_RESO);
+
+// Euclidean
+uint8_t euclidOnsets[OUT_COUNT] = {3, 5, 7, 10, 11};
+uint8_t euclidStep = 5;
+uint8_t euclidSteps[] = {6, 8, 10, 13, 15, 16};
+uint8_t euclidStepsSize = sizeof(euclidSteps) / sizeof(euclidSteps[0]);
+static Euclidean euclid[OUT_COUNT];
 
 template <typename vs = int8_t>
 vs constrainCyclic(vs value, vs min, vs max)
@@ -228,6 +236,62 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
     }
 }
 
+void initEuclidean()
+{
+    initTriggerOuts();
+    for (int i = 0; i < OUT_COUNT; ++i)
+    {
+        euclid[i].generate(euclidOnsets[i], euclidSteps[euclidStepsSize - 1]);
+    }
+}
+
+void updateEuclideanProcedure()
+{
+    int duration = clockEdge.getDurationMills();
+    duration = map(trigDurations[trigDurationMode], 0, 100, 0, duration);
+
+    if (clockEdgeLatch)
+    {
+        for (int i = 0; i < OUT_COUNT; ++i)
+        {
+            int8_t trig = euclid[i].getNext();
+            triggerOuts[i].setDuration(duration);            
+            bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == 0 ? 0 : 1);
+            triggerOuts[i].set(out);
+        }
+
+        clockEdgeLatch = false;
+    }
+    else
+    {
+        for (int i = 0; i < OUT_COUNT; ++i)
+        {
+            triggerOuts[i].update(0);
+        }
+    }
+}
+
+void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
+{
+    if (btn0 == 3)
+    {
+        trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
+    }
+    else if (btn1 == 3)
+    {
+        euclidStep = constrain(euclidStep + encValue, 0, euclidStepsSize - 1);
+        for (int i = 0; i < OUT_COUNT; ++i)
+        {
+            uint8_t onset = min(euclidOnsets[i], euclidSteps[euclidStep]);
+            euclid[i].generate(onset, euclidSteps[euclidStep]);
+        }
+    }
+    else if (btn2 == 3)
+    {
+        updateMainMode(encValue);
+    }
+}
+
 // void interruptPWM()
 // {
 //     pwm_clear_irq(interruptSliceNum);
@@ -288,6 +352,8 @@ void setup()
     irq_set_enabled(IO_IRQ_BANK0, true);
 
     initTriggerOuts();
+    initClockDivider();
+    initEuclidean();
 
     initPWM(OUT6, PWM_RESO);
 }
@@ -306,6 +372,9 @@ void loop()
         break;
     case 1:
         updateShiftRegisterProcedure();
+        break;
+    case 2:
+        updateEuclideanProcedure();
         break;
     default:
         break;
@@ -332,6 +401,9 @@ void loop1()
         break;
     case 1:
         updateshiftRegisterUI(btn0, btn1, btn2, encValue);
+        break;
+    case 2:
+        updateEuclideanUI(btn0, btn1, btn2, encValue);
         break;
     default:
         if (btn2 == 3)

@@ -15,6 +15,7 @@
 
 #include "../../commonlib/common/EdgeChecker.hpp"
 #include "../../commonlib/common/TriggerOut.hpp"
+#include "../../commonlib/common/Quantizer.hpp"
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
@@ -60,9 +61,9 @@ static uint8_t divIndexSize = sizeof(divIndex) / sizeof(divIndex[0]);
 #define SHIFT_REGISTER_SIZE 8
 uint8_t shiftRegister[SHIFT_REGISTER_SIZE] = {0};
 uint8_t shiftRegisterIndex[OUT_COUNT] = {1, 2, 3, 4, 5};
-// uint8_t r2rScale = 5;
-// uint8_t r2rOctMax = 2;
-// static Quantizer quantizer(PWM_RESO);
+uint8_t r2rScale = 5;
+uint8_t r2rOctMax = 2;
+static Quantizer quantizer(PWM_RESO);
 
 template <typename vs = int8_t>
 vs constrainCyclic(vs value, vs min, vs max)
@@ -181,6 +182,17 @@ void updateShiftRegisterProcedure()
             triggerOuts[i].set(out);
         }
 
+        uint16_t r2rOut = 1;
+        for (int i = 0; i < 8; ++i)
+        {
+            r2rOut += (shiftRegister[i] ? 1 : 0) << i;
+        }
+
+        // quantizer
+        quantizer.setScale(r2rScale);
+        uint16_t cv = map(r2rOut, 0, 255, 0, (7 * r2rOctMax));
+        pwm_set_gpio_level(OUT6, quantizer.Quantize(cv));
+
         clockEdgeLatch = false;
         if(resetEdgeLatch) resetEdgeLatch = false;
     }
@@ -265,6 +277,8 @@ void setup()
     irq_set_enabled(IO_IRQ_BANK0, true);
 
     initTriggerOuts();
+
+    initPWM(OUT6, PWM_RESO);
 }
 
 void loop()

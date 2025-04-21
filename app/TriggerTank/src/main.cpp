@@ -61,7 +61,9 @@ static uint8_t divIndexSize = sizeof(divIndex) / sizeof(divIndex[0]);
 #define SHIFT_REGISTER_SIZE 8
 uint8_t shiftRegister[SHIFT_REGISTER_SIZE] = {0};
 uint8_t shiftRegisterIndex[OUT_COUNT] = {1, 2, 3, 4, 5};
-uint8_t r2rScale = 5;
+uint8_t r2rScale = 1;
+int8_t r2rScaleIndex[] = {0, 5, 7};
+static uint8_t r2rScaleIndexSize = sizeof(r2rScaleIndex) / sizeof(r2rScaleIndex[0]);
 uint8_t r2rOctMax = 2;
 static Quantizer quantizer(PWM_RESO);
 
@@ -189,9 +191,10 @@ void updateShiftRegisterProcedure()
         }
 
         // quantizer
-        quantizer.setScale(r2rScale);
+        quantizer.setScale(r2rScaleIndex[r2rScale]);
         uint16_t cv = map(r2rOut, 0, 255, 0, (7 * r2rOctMax));
-        pwm_set_gpio_level(OUT6, quantizer.Quantize(cv));
+        int16_t r2rCV = r2rScaleIndex[r2rScale] == -1 ? cv : quantizer.Quantize(cv);
+        pwm_set_gpio_level(OUT6, r2rCV);
 
         clockEdgeLatch = false;
         if(resetEdgeLatch) resetEdgeLatch = false;
@@ -207,9 +210,17 @@ void updateShiftRegisterProcedure()
 
 void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
 {
-    if (btn0 == 3)
+    if (btn0 == 2)
+    {
+        r2rOctMax = constrainCyclic(r2rOctMax + 1, 1, 5);
+    }
+    else if (btn0 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
+    }
+    else if (btn1 == 3)
+    {
+        r2rScale = constrain(r2rScale + encValue, 0, r2rScaleIndexSize - 1);
     }
     else if (btn2 == 3)
     {

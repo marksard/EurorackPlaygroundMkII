@@ -31,14 +31,14 @@ public:
         }
     }
 
-    /// @brief ピン設定
-    /// @param pin
-    void init(uint8_t pin, gpio_irq_callback_t callback, ulong aliveTimeMillis = 1000)
-    {
-        setPin(pin);
-        _aliveTimeMicros = aliveTimeMillis * 1000;
-        gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_LEVEL_HIGH | GPIO_IRQ_EDGE_FALL, true, callback);
-    }
+    // /// @brief ピン設定
+    // /// @param pin
+    // void init(uint8_t pin, gpio_irq_callback_t callback, ulong aliveTimeMillis = 1000)
+    // {
+    //     setPin(pin);
+    //     _aliveTimeMicros = aliveTimeMillis * 1000;
+    //     gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_LEVEL_HIGH | GPIO_IRQ_EDGE_FALL, true, callback);
+    // }
 
     inline bool updateEdge(uint8_t value)
     {

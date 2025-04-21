@@ -21,7 +21,7 @@
 #define PWM_RESO 2048         // 11bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 10)
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8)
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -32,27 +32,37 @@ static SmoothAnalogRead vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 
-// Trigger Tank
+// TriggerTank common
 #define OUT_COUNT 5
-static int outPins[OUT_COUNT] = {OUT1, OUT2, OUT3, OUT4, OUT5};
+static uint8_t outPins[OUT_COUNT] = {OUT1, OUT2, OUT3, OUT4, OUT5};
 static uint8_t mainMode = 0;
 static EdgeChecker clockEdge;
 static EdgeChecker resetEdge;
-
-static int16_t trigDurationMode = 0;
-static TriggerOut triggerOuts[OUT_COUNT];
-static uint8_t trigDurations[] = {0, 2, 8, 16, 32, 64, 80}; // 0は通常のゲート出力、その他はトリガーパルス幅（%）
-static uint8_t trigDurationsSize = sizeof(trigDurations) / sizeof(trigDurations[0]);
-
-static uint8_t clockGate = 0;
 static int16_t clockCount = 0;
 static int16_t resetCount = 64;
-static int16_t divMode = 0;
-static int16_t divCount[][OUT_COUNT] = {
+
+static TriggerOut triggerOuts[OUT_COUNT];
+static uint8_t trigDurationMode = 0;
+// 0は通常のゲート出力、その他はトリガーパルス幅（%）
+static uint8_t trigDurations[] = {0, 2, 8, 16, 32, 64, 80};
+static uint8_t trigDurationsSize = sizeof(trigDurations) / sizeof(trigDurations[0]);
+
+// ClockDivider
+volatile bool clockEdgeLatch = false;
+volatile bool resetEdgeLatch = false;
+static uint8_t divMode = 0;
+static uint8_t divIndex[][OUT_COUNT] = {
     {2, 4, 8, 16, 32},
-    {3, 5, 7, 8, 12}
-};
-static int16_t divCountSize = sizeof(divCount) / sizeof(divCount[0]);
+    {3, 5, 7, 8, 12}};
+static uint8_t divIndexSize = sizeof(divIndex) / sizeof(divIndex[0]);
+
+// ShiftRegister
+#define SHIFT_REGISTER_SIZE 8
+uint8_t shiftRegister[SHIFT_REGISTER_SIZE] = {0};
+uint8_t shiftRegisterIndex[OUT_COUNT] = {1, 2, 3, 4, 5};
+// uint8_t r2rScale = 5;
+// uint8_t r2rOctMax = 2;
+// static Quantizer quantizer(PWM_RESO);
 
 template <typename vs = int8_t>
 vs constrainCyclic(vs value, vs min, vs max)
@@ -66,7 +76,6 @@ vs constrainCyclic(vs value, vs min, vs max)
 
 void initTriggerOuts()
 {
-
     for (int i = 0; i < OUT_COUNT; ++i)
     {
         triggerOuts[i].init(outPins[i]);
@@ -98,9 +107,10 @@ void initClockDivider()
 
 void updateClockDividerProcedure()
 {
-    if (resetEdge.isEdgeHigh())
+    if (resetEdgeLatch)
     {
         clockCount = 0;
+        resetEdgeLatch = false;
     }
 
     int duration = clockEdge.getDurationMills();
@@ -108,9 +118,9 @@ void updateClockDividerProcedure()
     for (int i = 0; i < OUT_COUNT; ++i)
     {
         triggerOuts[i].setDuration(duration);
-        int16_t divCountAdd = divCount[divMode][i];
-        // クロックカウンタの値をdivCountAddで割った余りが、divCountAddの半分より小さい場合にトリガーを出力する
-        bool div = (clockCount % divCountAdd) < (divCountAdd >> 1);
+        int16_t divIndexAdd = divIndex[divMode][i];
+        // クロックカウンタの値をdivIndexAddで割った余りが、divIndexAddの半分より小さい場合にトリガーを出力する
+        bool div = (clockCount % divIndexAdd) < (divIndexAdd >> 1);
         bool out = triggerOuts[i].getTriggerGate(div, trigDurationMode == 0 ? 0 : 1);
         triggerOuts[i].set(out);
     }
@@ -124,7 +134,7 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     }
     else if (btn1 == 2)
     {
-        divMode = constrainCyclic(divMode + 1, 0, divCountSize - 1);
+        divMode = constrainCyclic(divMode + 1, 0, divIndexSize - 1);
     }
     else if (btn0 == 3)
     {
@@ -140,27 +150,92 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     }
 }
 
+void initShiftRegister()
+{
+    initTriggerOuts();
+
+    for (int i = 0; i < SHIFT_REGISTER_SIZE; ++i)
+    {
+        shiftRegister[i] = 0;
+    }
+}
+
+void updateShiftRegisterProcedure()
+{
+    int duration = clockEdge.getDurationMills();
+    duration = map(trigDurations[trigDurationMode], 0, 100, 0, duration);
+
+    if (clockEdgeLatch)
+    {
+        for (int i = 7; i > 0; --i)
+        {
+            shiftRegister[i] = shiftRegister[i - 1];
+        }
+        shiftRegister[0] = resetEdgeLatch ? 1 : 0;
+
+        for (int i = 0; i < OUT_COUNT; ++i)
+        {
+            triggerOuts[i].setDuration(duration);
+            bool div = shiftRegister[shiftRegisterIndex[i] - 1] == 1;
+            bool out = triggerOuts[i].getTriggerGate(div, trigDurationMode == 0 ? 0 : 1);
+            triggerOuts[i].set(out);
+        }
+
+        clockEdgeLatch = false;
+        if(resetEdgeLatch) resetEdgeLatch = false;
+    }
+    else
+    {
+        for (int i = 0; i < OUT_COUNT; ++i)
+        {
+            triggerOuts[i].update(0);
+        }
+    }
+}
+
+void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
+{
+    if (btn0 == 3)
+    {
+        trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
+    }
+    else if (btn2 == 3)
+    {
+        updateMainMode(encValue);
+    }
+}
+
 // void interruptPWM()
 // {
 //     pwm_clear_irq(interruptSliceNum);
 // }
 
-void clockEdgeCallback(uint gpio, uint32_t events)
+void edgeCallback(uint gpio, uint32_t events)
 {
-    if (events & GPIO_IRQ_EDGE_RISE)
+    if (gpio == VOCT)
     {
-        clockEdge.updateEdge(1);
-        clockCount = (clockCount + 1) % resetCount;
+        if (events & GPIO_IRQ_EDGE_RISE)
+        {
+            resetEdge.updateEdge(1);
+            resetEdgeLatch = true;
+        }
+        else
+        {
+            resetEdge.updateEdge(0);
+        }
     }
-    else if (events & GPIO_IRQ_LEVEL_HIGH)
+    if (gpio == GATE)
     {
-        clockGate = 1;
-        clockEdge.updateEdge(0);
-    }
-    else
-    {
-        clockGate = 0;
-        clockEdge.updateEdge(0);
+        if (events & GPIO_IRQ_EDGE_RISE)
+        {
+            clockEdge.updateEdge(1);
+            clockCount = (clockCount + 1) % resetCount;
+            clockEdgeLatch = true;
+        }
+        else
+        {
+            clockEdge.updateEdge(0);
+        }
     }
 }
 
@@ -182,8 +257,12 @@ void setup()
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
 
-    clockEdge.init(GATE, clockEdgeCallback);
+    clockEdge.init(GATE);
     resetEdge.init(VOCT);
+    gpio_set_irq_enabled(GATE, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+    gpio_set_irq_enabled(VOCT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+    gpio_set_irq_callback(edgeCallback);
+    irq_set_enabled(IO_IRQ_BANK0, true);
 
     initTriggerOuts();
 }
@@ -192,12 +271,21 @@ void loop()
 {
     int8_t encValue = enc.getDirection();
     // uint16_t voct = vOct.analogReadDirect();
-    int16_t cv1Value = cv1.analogReadDirect();
-    uint16_t cv2Value = cv2.analogReadDirect();
+    // int16_t cv1Value = cv1.analogReadDirect();
+    // uint16_t cv2Value = cv2.analogReadDirect();
 
-    
-    updateClockDividerProcedure();
-    
+    switch (mainMode)
+    {
+    case 0:
+        updateClockDividerProcedure();
+        break;
+    case 1:
+        updateShiftRegisterProcedure();
+        break;
+    default:
+        break;
+    }
+
     sleep_us(50);
 }
 
@@ -212,7 +300,21 @@ void loop1()
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
 
-    updateClockDividerUI(btn0, btn1, btn2, encValue);
+    switch (mainMode)
+    {
+    case 0:
+        updateClockDividerUI(btn0, btn1, btn2, encValue);
+        break;
+    case 1:
+        updateshiftRegisterUI(btn0, btn1, btn2, encValue);
+        break;
+    default:
+        if (btn2 == 3)
+        {
+            updateMainMode(encValue);
+        }
+        break;
+    }
 
     sleep_us(1000);
 }

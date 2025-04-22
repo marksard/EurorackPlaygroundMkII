@@ -20,6 +20,8 @@
 #include "../../commonlib/common/Quantizer.hpp"
 #include "../../commonlib/common/Euclidean.hpp"
 
+#include "StepSeqModel.hpp"
+
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
 #define PWM_RESO 2048         // 11bit
@@ -53,10 +55,12 @@ static uint8_t trigDurationsSize = sizeof(trigDurations) / sizeof(trigDurations[
 // ClockDivider
 volatile bool clockEdgeLatch = false;
 volatile bool dataEdgeLatch = false;
-static uint8_t divMode = 0;
+static uint8_t divMode = 1;
 static uint8_t divIndex[][OUT_COUNT] = {
+    {2, 3, 4, 5, 6},
     {2, 4, 8, 16, 32},
-    {3, 5, 7, 8, 12}};
+    {3, 5, 7, 9, 11},
+};
 static uint8_t divIndexSize = sizeof(divIndex) / sizeof(divIndex[0]);
 
 // ShiftRegister
@@ -75,6 +79,10 @@ uint8_t euclidStep = 5;
 uint8_t euclidSteps[] = {6, 8, 10, 13, 15, 16};
 uint8_t euclidStepsSize = sizeof(euclidSteps) / sizeof(euclidSteps[0]);
 static Euclidean euclid[OUT_COUNT];
+
+// StepSeq
+StepSeqModel stepSeqModel;
+bool requestGenerateSequence = false;
 
 template <typename vs = int8_t>
 vs constrainCyclic(vs value, vs min, vs max)
@@ -112,6 +120,35 @@ uint8_t updateMainMode(int8_t encValue)
     return mainMode;
 }
 
+void generateSequence()
+{
+    stepSeqModel.generateSequence(-1, 2,
+                                  StepSeqModel::Gate::S, StepSeqModel::Gate::G, StepSeqModel::Gate::_);
+
+    stepSeqModel._scaleIndex.set(5);
+    stepSeqModel.keyStep.setMode(Step::Mode::Forward);
+    stepSeqModel.gateStep.setMode(Step::Mode::Forward);
+    stepSeqModel.keyStep.resetPlayStep();
+    stepSeqModel.gateStep.resetPlayStep();
+    // stepSeqModel.printSeq();
+}
+
+void updateSequenceProcedure()
+{
+    if (stepSeqModel.gateStep.pos.getMin() == stepSeqModel.gateStep.pos.get())
+    {
+        if (requestGenerateSequence)
+        {
+            requestGenerateSequence = false;
+            generateSequence();
+        }
+    }
+
+    uint16_t voct = stepSeqModel.getPlayNote() * quantizer.VoltPerTone;
+    pwm_set_gpio_level(OUT6, voct);
+    stepSeqModel.keyStep.nextPlayStep();
+}
+
 void initClockDivider()
 {
     initTriggerOuts();
@@ -124,11 +161,18 @@ void updateClockDividerProcedure()
     for (int i = 0; i < OUT_COUNT; ++i)
     {
         triggerOuts[i].setDuration(duration);
-        int16_t divIndexAdd = divIndex[divMode][i];
-        // クロックカウンタの値をdivIndexAddで割った余りが、divIndexAddの半分より小さい場合にトリガーを出力する
-        bool div = (clockCount % divIndexAdd) < (divIndexAdd >> 1);
-        bool out = triggerOuts[i].getTriggerGate(div, trigDurationMode == 0 ? 0 : 1);
+        int16_t div = divIndex[divMode][i];
+        // クロックカウンタの値をdivで割った余りが、divの半分より小さい場合にトリガーを出力する
+        bool trig = (clockCount % div) < (div >> 1);
+        bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == 0 ? 0 : 1);
         triggerOuts[i].set(out);
+    }
+
+    if (clockEdgeLatch)
+    {
+        updateSequenceProcedure();
+
+        clockEdgeLatch = false;
     }
 }
 
@@ -140,7 +184,11 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     }
     else if (btn1 == 2)
     {
-        divMode = constrainCyclic(divMode + 1, 0, divIndexSize - 1);
+        clockCount = (clockCount + 1) % resetCount;        
+    }
+    else if (btn0 == 3 && btn1 == 3)
+    {
+        requestGenerateSequence = true;
     }
     else if (btn0 == 3)
     {
@@ -148,11 +196,16 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     }
     else if (btn1 == 3)
     {
-        clockCount = (clockCount + encValue) % resetCount;
+        stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
+                                          stepSeqModel.keyStep.pos.getMax() + encValue);
     }
     else if (btn2 == 3)
     {
         updateMainMode(encValue);
+    }
+    else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
+    {
+        divMode = constrain(divMode + encValue, 0, divIndexSize - 1);
     }
 }
 
@@ -176,8 +229,8 @@ void updateShiftRegisterProcedure()
         for (int i = 0; i < OUT_COUNT; ++i)
         {
             triggerOuts[i].setDuration(duration);
-            bool div = shiftRegister[shiftRegisterIndex[i] - 1] == 1;
-            bool out = triggerOuts[i].getTriggerGate(div, trigDurationMode == 0 ? 0 : 1);
+            bool trig = shiftRegister[shiftRegisterIndex[i] - 1] == 1;
+            bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == 0 ? 0 : 1);
             triggerOuts[i].set(out);
         }
 
@@ -226,6 +279,9 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
     {
         updateMainMode(encValue);
     }
+    else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
+    {
+    }
 }
 
 void initEuclidean()
@@ -252,6 +308,8 @@ void updateEuclideanProcedure()
             triggerOuts[i].set(out);
         }
 
+        updateSequenceProcedure();
+
         clockEdgeLatch = false;
     }
     else
@@ -265,23 +323,39 @@ void updateEuclideanProcedure()
 
 void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
 {
-    if (btn0 == 3)
+    if (btn0 == 3 && btn1 == 3)
+    {
+        requestGenerateSequence = true;
+    }
+    else if (btn0 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
     }
     else if (btn1 == 3)
     {
-        euclidStep = constrain(euclidStep + encValue, 0, euclidStepsSize - 1);
-        for (int i = 0; i < OUT_COUNT; ++i)
-        {
-            uint8_t onset = min(euclidOnsets[i], euclidSteps[euclidStep]);
-            euclid[i].generate(onset, euclidSteps[euclidStep]);
-        }
+        stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
+                                          stepSeqModel.keyStep.pos.getMax() + encValue);
     }
     else if (btn2 == 3)
     {
         updateMainMode(encValue);
     }
+    else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
+    {
+        euclidStep = constrain(euclidStep + encValue, 0, euclidStepsSize - 1);
+        for (int i = 0; i < OUT_COUNT; ++i)
+        {
+            uint8_t step = euclidSteps[euclidStep];
+            uint8_t onset = euclidOnsets[i];
+            onset = onset > step ? onset >> 1 : onset;
+            euclid[i].generate(onset, step);
+        }
+    }
+}
+
+void initDefault()
+{
+    initTriggerOuts();
 }
 
 void defaultProcedure()
@@ -372,6 +446,7 @@ void edgeCallback(uint gpio, uint32_t events)
 
 void setup()
 {
+    // Serial.begin(9600);
     analogReadResolution(12);
 
     pot.init(POT1);
@@ -391,6 +466,9 @@ void setup()
     initTriggerOuts();
     initClockDivider();
     initEuclidean();
+    initDefault();
+    stepSeqModel.resetSequence(StepSeqModel::Gate::S);
+    generateSequence();
 
     clockEdge.init(GATE);
     pinMode(VOCT, INPUT);
@@ -400,8 +478,8 @@ void setup()
     // irq_set_exclusive_handler(IO_IRQ_BANK0, gpioIRQHandler);
 
     gpio_set_irq_enabled(GATE, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_enabled(VOCT, GPIO_IRQ_EDGE_RISE, true);
-    gpio_set_irq_enabled(CV1, GPIO_IRQ_EDGE_RISE, true);
+    gpio_set_irq_enabled(VOCT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+    gpio_set_irq_enabled(CV1, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
     gpio_set_irq_callback(edgeCallback);
     irq_set_enabled(IO_IRQ_BANK0, true);
 }

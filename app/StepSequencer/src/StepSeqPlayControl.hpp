@@ -462,14 +462,13 @@ public:
 
     void resetAllSequence()
     {
-        ::resetSequence(&_ssm, _gateInitial.get());
+        _ssm.resetSequence(_gateInitial.get());
     }
 
     void generateSequence(bool resetSyncCount = true)
     {
         _seqReadyCount = 0;
-        // _ssm.randomSeed(micros());
-        ::generateSequence(&_ssm, _octUnder.get(), _octUpper.get(),
+        _ssm.generateSequence(_octUnder.get(), _octUpper.get(),
                            _gateMin.get(), _gateMax.get(), _gateInitial.get());
 
         if (resetSyncCount == false)

@@ -15,42 +15,8 @@
 #define MAX_SCALES 10
 #define MAX_SCALES_M1 (MAX_SCALES - 1)
 
-// スケール
-static const uint8_t scales[MAX_SCALES][MAX_SCALE_KEY] =
-    {
-        {0, 2, 4, 5, 7, 9, 11}, // ionian / major
-        {0, 2, 3, 5, 7, 9, 10}, // dorian
-        {0, 1, 3, 5, 7, 8, 10}, // phrygian
-        {0, 2, 4, 6, 7, 9, 11}, // lydian
-        {0, 2, 4, 5, 7, 9, 10}, // mixolydian
-        {0, 2, 3, 5, 7, 8, 10}, // aeolian / natural minor
-        {0, 1, 3, 5, 6, 8, 10}, // locrian
-        {0, 2, 3, 4, 7, 9,  0}, // m.blues
-        {0, 1, 4, 5, 7, 8, 10}, // spanish
-        {0, 2, 4, 7, 9, 0,  2}, // luoyin
-};
-
 #define MAX_GATE_TIMINGS 4
 #define MAX_GATE_STEP 16
-// メロディーを成立しやすくするための発音タイミングマップ
-// この上にランダムでタイミングを追加してランダムかつメロディーを成立しやすく
-const uint8_t gateMap[MAX_GATE_TIMINGS][MAX_GATE_STEP] = {
-    {1, 0, 1, 1,
-     1, 1, 0, 1,
-     0, 1, 1, 0,
-     1, 0, 0, 1,},
-    {0, 1, 0, 1,
-     1, 0, 1, 0,
-     0, 1, 1, 0,
-     0, 1, 0, 1,},
-    {1, 1, 0, 1,
-     1, 1, 1, 1,
-     1, 1, 1, 1,
-     1, 0, 1, 1,},
-    {1, 0, 1, 0,
-     1, 0, 0, 1,
-     0, 1, 1, 0,
-     1, 0, 0, 1}};
 
 
 template <typename vs = uint8_t>
@@ -60,17 +26,17 @@ void initArray(vs *pArray, vs size)
         pArray[i] = 0;
 }
 
-template <typename vs = uint8_t>
-void printArray(vs *pArray, vs size)
-{
-    for (vs i = 0; i < size; ++i)
-    {
-        Serial.print(pArray[i]);
-        Serial.print(",");
-    }
+// template <typename vs = uint8_t>
+// void printArray(vs *pArray, vs size)
+// {
+//     for (vs i = 0; i < size; ++i)
+//     {
+//         Serial.print(pArray[i]);
+//         Serial.print(",");
+//     }
 
-    Serial.println("");
-}
+//     Serial.println("");
+// }
 
 template <typename vs = int8_t>
 class LimitValue
@@ -265,8 +231,8 @@ public:
     uint8_t getPlayAcc() { return _accs[gateStep.pos.get()]; }
     uint8_t getPlayGate() { return constrain(_gates[gateStep.pos.get()] + gateLenAdder.get(), 0, (uint8_t)Gate::G); }
 
-    uint8_t getPlayNote() { return (constrain(getPlayOctave() + octaveAdder.get(), 0, 5) * 12) + scales[_scaleIndex.get()][getPlayKey()]; }
-    uint8_t getScaleKey(uint8_t scale, uint8_t key) { return scales[scale][key]; }
+    uint8_t getPlayNote() { return (constrain(getPlayOctave() + octaveAdder.get(), 0, 5) * 12) + Scales[_scaleIndex.get()][getPlayKey()]; }
+    uint8_t getScaleKey(uint8_t scale, uint8_t key) { return Scales[scale][key]; }
 
     uint8_t getGateDulation() { return GateDulation[getPlayGate()]; }
 
@@ -316,43 +282,121 @@ public:
         }
     }
 
-    void printSeq()
+    void generateSequence(int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
     {
-        printArray(_keys, MAX_STEP);
-        printArray(_octaves, MAX_STEP);
-        printArray(_accs, MAX_STEP);
-        printArray((uint8_t *)_gates, MAX_STEP);
-        for (byte i = 0; i < StepSeqModel::MAX_STEP * 3; ++i)
+        // Serial.println("generateSequence\n");
+        randomSeed(micros());
+        byte geteSelect = rand(MAX_GATE_TIMINGS);
+    
+        for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
         {
-            Serial.print("i:");
-            Serial.print(i);
-            Serial.print(", ");
-            Serial.print("Key Step:");
-            Serial.print(keyStep.pos.get());
-            Serial.print(", ");
-            Serial.print("Gate Step:");
-            Serial.print(gateStep.pos.get());
-            Serial.print(", ");
-            Serial.print("Key:");
-            Serial.print(getPlayKey());
-            Serial.print(", ");
-            Serial.print("Octave:");
-            Serial.print(getPlayOctave());
-            Serial.print(", ");
-            Serial.print("Gate:");
-            Serial.print(getPlayGate());
-            Serial.print(", ");
-            Serial.print("Note:");
-            Serial.print(getPlayNote());
-            Serial.print(", ");
-            Serial.print("Acc:");
-            Serial.print(getPlayAcc());
-            Serial.print(", ");
-            Serial.println();
-            keyStep.nextPlayStep();
-            gateStep.nextPlayStep();
+            // タイミングマップにランダムでタイミングをorして足す
+            StepSeqModel::Gate gate = GateMap[geteSelect][i] == 1 ? 
+                (StepSeqModel::Gate)rand(gateMin, gateMax) : 
+                (StepSeqModel::Gate)(rand(2) ? getGate(i) : gateInitial);
+            setGate(i, gate);
+    
+            // 変更前のメロディーラインをランダムに残して繋がりを持たせる
+            if (rand(2))
+            {
+                continue;
+            }
+    
+            // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
+            // 0 ~ 24 + スケール音
+            setOctave(i, 1 + (rand(octUnder, octUpper)));
+            setKey(i, rand(MAX_SCALE_KEY));
+            setAcc(i, gate != StepSeqModel::Gate::_ && rand(0, 6) == 1 ? 1 : 0);
         }
     }
+    
+    void resetSequence(int8_t gateInitial)
+    {
+        // Serial.println("resetSequence\n");
+        byte geteSelect = random(MAX_GATE_TIMINGS);
+    
+        for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
+        {
+            setGate(i, (StepSeqModel::Gate)gateInitial);
+            setOctave(i, 1);
+            setKey(i, 0);
+            setAcc(i, 0);
+         }
+    }
+    
+    // void printSeq()
+    // {
+    //     printArray(_keys, MAX_STEP);
+    //     printArray(_octaves, MAX_STEP);
+    //     printArray(_accs, MAX_STEP);
+    //     printArray((uint8_t *)_gates, MAX_STEP);
+    //     for (byte i = 0; i < StepSeqModel::MAX_STEP * 3; ++i)
+    //     {
+    //         Serial.print("i:");
+    //         Serial.print(i);
+    //         Serial.print(", ");
+    //         Serial.print("Key Step:");
+    //         Serial.print(keyStep.pos.get());
+    //         Serial.print(", ");
+    //         Serial.print("Gate Step:");
+    //         Serial.print(gateStep.pos.get());
+    //         Serial.print(", ");
+    //         Serial.print("Key:");
+    //         Serial.print(getPlayKey());
+    //         Serial.print(", ");
+    //         Serial.print("Octave:");
+    //         Serial.print(getPlayOctave());
+    //         Serial.print(", ");
+    //         Serial.print("Gate:");
+    //         Serial.print(getPlayGate());
+    //         Serial.print(", ");
+    //         Serial.print("Note:");
+    //         Serial.print(getPlayNote());
+    //         Serial.print(", ");
+    //         Serial.print("Acc:");
+    //         Serial.print(getPlayAcc());
+    //         Serial.print(", ");
+    //         Serial.println();
+    //         keyStep.nextPlayStep();
+    //         gateStep.nextPlayStep();
+    //     }
+    // }
+
+public:
+    // スケール
+    const uint8_t Scales[MAX_SCALES][MAX_SCALE_KEY] =
+    {
+        {0, 2, 4, 5, 7, 9, 11}, // ionian / major
+        {0, 2, 3, 5, 7, 9, 10}, // dorian
+        {0, 1, 3, 5, 7, 8, 10}, // phrygian
+        {0, 2, 4, 6, 7, 9, 11}, // lydian
+        {0, 2, 4, 5, 7, 9, 10}, // mixolydian
+        {0, 2, 3, 5, 7, 8, 10}, // aeolian / natural minor
+        {0, 1, 3, 5, 6, 8, 10}, // locrian
+        {0, 2, 3, 4, 7, 9,  0}, // m.blues
+        {0, 1, 4, 5, 7, 8, 10}, // spanish
+        {0, 2, 4, 7, 9, 0,  2}, // luoyin
+    };
+
+    // メロディーを成立しやすくするための発音タイミングマップ
+    // この上にランダムでタイミングを追加してランダムかつメロディーを成立しやすく
+    const uint8_t GateMap[MAX_GATE_TIMINGS][MAX_GATE_STEP] = {
+        {1, 0, 1, 1,
+        1, 1, 0, 1,
+        0, 1, 1, 0,
+        1, 0, 0, 1,},
+        {0, 1, 0, 1,
+        1, 0, 1, 0,
+        0, 1, 1, 0,
+        0, 1, 0, 1,},
+        {1, 1, 0, 1,
+        1, 1, 1, 1,
+        1, 1, 1, 1,
+        1, 0, 1, 1,},
+        {1, 0, 1, 0,
+        1, 0, 0, 1,
+        0, 1, 1, 0,
+        1, 0, 0, 1}};
 
 public:
     Step keyStep;
@@ -380,73 +424,3 @@ private:
         return value;
     }
 };
-
-void generateSequence(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
-{
-    Serial.println("generateSequence\n");
-    pssm->randomSeed(micros());
-    byte geteSelect = pssm->rand(MAX_GATE_TIMINGS);
-
-    for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
-    {
-        // タイミングマップにランダムでタイミングをorして足す
-        StepSeqModel::Gate gate = gateMap[geteSelect][i] == 1 ? 
-            (StepSeqModel::Gate)pssm->rand(gateMin, gateMax) : 
-            (StepSeqModel::Gate)(pssm->rand(2) ? pssm->getGate(i) : gateInitial);
-        pssm->setGate(i, gate);
-
-        // 変更前のメロディーラインをランダムに残して繋がりを持たせる
-        if (pssm->rand(2))
-        {
-            continue;
-        }
-
-        // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
-        // 0 ~ 24 + スケール音
-        pssm->setOctave(i, 1 + (pssm->rand(octUnder, octUpper)));
-        pssm->setKey(i, pssm->rand(MAX_SCALE_KEY));
-        pssm->setAcc(i, gate != StepSeqModel::Gate::_ && pssm->rand(0, 6) == 1 ? 1 : 0);
-    }
-}
-
-// void generateSequenceNormalRand(StepSeqModel *pssm, int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
-// {
-//     Serial.println("generateSequence\n");
-//     randomSeed(micros());
-//     byte geteSelect = random(MAX_GATE_TIMINGS);
-
-//     for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
-//     {
-//         // タイミングマップにランダムでタイミングをorして足す
-//         StepSeqModel::Gate gate = gateMap[geteSelect][i] == 1 ? 
-//         (StepSeqModel::Gate)random((StepSeqModel::Gate)gateMin, (StepSeqModel::Gate)gateMax) : 
-//         (StepSeqModel::Gate)gateInitial;
-//         pssm->setGate(i, gate);
-
-//         // 変更前のメロディーラインをランダムに残して繋がりを持たせる
-//         if (random(2))
-//         {
-//             continue;
-//         }
-
-//         // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
-//         // 0 ~ 24 + スケール音
-//         pssm->setOctave(i, 1 + (random(octUnder, octUpper)));
-//         pssm->setKey(i, random(MAX_SCALE_KEY));
-//         pssm->setAcc(i, gate != StepSeqModel::Gate::_ && random(0, 6) == 1 ? 1 : 0);
-//     }
-// }
-
-void resetSequence(StepSeqModel *pssm, int8_t gateInitial)
-{
-    Serial.println("resetSequence\n");
-    byte geteSelect = random(MAX_GATE_TIMINGS);
-
-    for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
-    {
-        pssm->setGate(i, (StepSeqModel::Gate)gateInitial);
-        pssm->setOctave(i, 1);
-        pssm->setKey(i, 0);
-        pssm->setAcc(i, 0);
-     }
-}

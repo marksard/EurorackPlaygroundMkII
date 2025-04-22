@@ -41,7 +41,6 @@ static SmoothAnalogRead cv2;
 static uint8_t outPins[OUT_COUNT] = {OUT1, OUT2, OUT3, OUT4, OUT5};
 static uint8_t mainMode = 0;
 static EdgeChecker clockEdge;
-static EdgeChecker resetEdge;
 static int16_t clockCount = 0;
 static int16_t resetCount = 64;
 
@@ -341,13 +340,14 @@ void edgeCallback(uint gpio, uint32_t events)
     {
         if (events & GPIO_IRQ_EDGE_RISE)
         {
-            resetEdge.updateEdge(1);
             clockCount = 0;
-            dataEdgeLatch = true;
         }
-        else
+    }
+    else if (gpio == CV1)
+    {
+        if (events & GPIO_IRQ_EDGE_RISE)
         {
-            resetEdge.updateEdge(0);
+            dataEdgeLatch = true;
         }
     }
 }
@@ -380,7 +380,7 @@ void setup()
     buttons[1].init(BTN2);
     buttons[2].init(BTN3);
     // vOct.init(VOCT);
-    cv1.init(CV1);
+    // cv1.init(CV1);
     cv2.init(CV2);
 
     pinMode(LED1, OUTPUT);
@@ -393,13 +393,15 @@ void setup()
     initEuclidean();
 
     clockEdge.init(GATE);
-    resetEdge.init(VOCT);
+    pinMode(VOCT, INPUT);
+    pinMode(CV1, INPUT);
 
     // initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
     // irq_set_exclusive_handler(IO_IRQ_BANK0, gpioIRQHandler);
 
     gpio_set_irq_enabled(GATE, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_enabled(VOCT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+    gpio_set_irq_enabled(VOCT, GPIO_IRQ_EDGE_RISE, true);
+    gpio_set_irq_enabled(CV1, GPIO_IRQ_EDGE_RISE, true);
     gpio_set_irq_callback(edgeCallback);
     irq_set_enabled(IO_IRQ_BANK0, true);
 }

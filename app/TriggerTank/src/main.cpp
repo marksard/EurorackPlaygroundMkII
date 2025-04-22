@@ -7,6 +7,8 @@
 
 #include <Arduino.h>
 #include <hardware/pwm.h>
+#include "hardware/irq.h"
+#include "hardware/gpio.h"
 #include "../../commonlib/common/Button.hpp"
 #include "../../commonlib/common/SmoothAnalogRead.hpp"
 #include "../../commonlib/common/RotaryEncoder.hpp"
@@ -51,7 +53,7 @@ static uint8_t trigDurationsSize = sizeof(trigDurations) / sizeof(trigDurations[
 
 // ClockDivider
 volatile bool clockEdgeLatch = false;
-volatile bool resetEdgeLatch = false;
+volatile bool dataEdgeLatch = false;
 static uint8_t divMode = 0;
 static uint8_t divIndex[][OUT_COUNT] = {
     {2, 4, 8, 16, 32},
@@ -118,12 +120,6 @@ void initClockDivider()
 
 void updateClockDividerProcedure()
 {
-    if (resetEdgeLatch)
-    {
-        clockCount = 0;
-        resetEdgeLatch = false;
-    }
-
     int duration = clockEdge.getDurationMills();
     duration = map(trigDurations[trigDurationMode], 0, 100, 0, duration);
     for (int i = 0; i < OUT_COUNT; ++i)
@@ -178,12 +174,6 @@ void updateShiftRegisterProcedure()
 
     if (clockEdgeLatch)
     {
-        for (int i = 7; i > 0; --i)
-        {
-            shiftRegister[i] = shiftRegister[i - 1];
-        }
-        shiftRegister[0] = resetEdgeLatch ? 1 : 0;
-
         for (int i = 0; i < OUT_COUNT; ++i)
         {
             triggerOuts[i].setDuration(duration);
@@ -205,7 +195,10 @@ void updateShiftRegisterProcedure()
         pwm_set_gpio_level(OUT6, r2rCV);
 
         clockEdgeLatch = false;
-        if(resetEdgeLatch) resetEdgeLatch = false;
+        if (dataEdgeLatch)
+        {
+            dataEdgeLatch = false;
+        }
     }
     else
     {
@@ -255,7 +248,7 @@ void updateEuclideanProcedure()
         for (int i = 0; i < OUT_COUNT; ++i)
         {
             int8_t trig = euclid[i].getNext();
-            triggerOuts[i].setDuration(duration);            
+            triggerOuts[i].setDuration(duration);
             bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == 0 ? 0 : 1);
             triggerOuts[i].set(out);
         }
@@ -292,25 +285,39 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     }
 }
 
-// void interruptPWM()
-// {
-//     pwm_clear_irq(interruptSliceNum);
-// }
+void defaultProcedure()
+{
+    if (clockEdgeLatch)
+    {
+        clockEdgeLatch = false;
+        triggerOuts[0].set(1);
+    }
+    else
+    {
+        triggerOuts[0].set(0);
+    }
+
+    if (dataEdgeLatch)
+    {
+        dataEdgeLatch = false;
+        triggerOuts[1].set(1);
+    }
+    else
+    {
+        triggerOuts[1].set(0);
+    }
+}
+
+void defaultUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
+{
+    if (btn2 == 3)
+    {
+        updateMainMode(encValue);
+    }
+}
 
 void edgeCallback(uint gpio, uint32_t events)
 {
-    if (gpio == VOCT)
-    {
-        if (events & GPIO_IRQ_EDGE_RISE)
-        {
-            resetEdge.updateEdge(1);
-            resetEdgeLatch = true;
-        }
-        else
-        {
-            resetEdge.updateEdge(0);
-        }
-    }
     if (gpio == GATE)
     {
         if (events & GPIO_IRQ_EDGE_RISE)
@@ -318,13 +325,50 @@ void edgeCallback(uint gpio, uint32_t events)
             clockEdge.updateEdge(1);
             clockCount = (clockCount + 1) % resetCount;
             clockEdgeLatch = true;
+
+            for (int i = 7; i > 0; --i)
+            {
+                shiftRegister[i] = shiftRegister[i - 1];
+            }
+            shiftRegister[0] = dataEdgeLatch ? 1 : 0;
         }
         else
         {
             clockEdge.updateEdge(0);
         }
     }
+    else if (gpio == VOCT)
+    {
+        if (events & GPIO_IRQ_EDGE_RISE)
+        {
+            resetEdge.updateEdge(1);
+            clockCount = 0;
+            dataEdgeLatch = true;
+        }
+        else
+        {
+            resetEdge.updateEdge(0);
+        }
+    }
 }
+
+// void gpioIRQHandler()
+// {
+//     for (int gpio = 29; gpio >= 0; gpio--)
+//     {
+//         uint32_t events = gpio_get_irq_event_mask(gpio);
+//         if (events)
+//         {
+//             gpio_acknowledge_irq(gpio, events);
+//             edgeCallback(gpio, events);
+//         }
+//     }
+// }
+
+// void interruptPWM()
+// {
+//     pwm_clear_irq(interruptSliceNum);
+// }
 
 void setup()
 {
@@ -339,23 +383,25 @@ void setup()
     cv1.init(CV1);
     cv2.init(CV2);
 
-    // initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
-
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
 
-    clockEdge.init(GATE);
-    resetEdge.init(VOCT);
-    gpio_set_irq_enabled(GATE, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_enabled(VOCT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
-    gpio_set_irq_callback(edgeCallback);
-    irq_set_enabled(IO_IRQ_BANK0, true);
+    initPWM(OUT6, PWM_RESO);
 
     initTriggerOuts();
     initClockDivider();
     initEuclidean();
 
-    initPWM(OUT6, PWM_RESO);
+    clockEdge.init(GATE);
+    resetEdge.init(VOCT);
+
+    // initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
+    // irq_set_exclusive_handler(IO_IRQ_BANK0, gpioIRQHandler);
+
+    gpio_set_irq_enabled(GATE, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+    gpio_set_irq_enabled(VOCT, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true);
+    gpio_set_irq_callback(edgeCallback);
+    irq_set_enabled(IO_IRQ_BANK0, true);
 }
 
 void loop()
@@ -377,6 +423,7 @@ void loop()
         updateEuclideanProcedure();
         break;
     default:
+        defaultProcedure();
         break;
     }
 
@@ -406,10 +453,7 @@ void loop1()
         updateEuclideanUI(btn0, btn1, btn2, encValue);
         break;
     default:
-        if (btn2 == 3)
-        {
-            updateMainMode(encValue);
-        }
+        defaultUI(btn0, btn1, btn2, encValue);
         break;
     }
 

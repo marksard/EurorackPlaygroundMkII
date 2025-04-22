@@ -1,9 +1,6 @@
 #pragma once
 #include <Arduino.h>
 
-#define MAX_SCALE_KEY 7
-#define MAX_SCALES 10
-#define MAX_SCALES_M1 (MAX_SCALES - 1)
 class Quantizer
 {
 public:
@@ -23,7 +20,7 @@ public:
 
     void setScale(uint8_t value)
     {
-        _scaleIndex = constrain(value, 0, MAX_SCALES);
+        _scaleIndex = constrain(value, 0, MaxScales - 1);
     }
 
     // const uint8_t *getScaleKeys(uint8_t index) { return Scales[index]; }
@@ -32,7 +29,7 @@ public:
 
 public:
     const float VoltPerTone;
-    const uint8_t Scales[MAX_SCALES][MAX_SCALE_KEY] =
+    const uint8_t Scales[10][7] =
     {
             {0, 2, 4, 5, 7, 9, 11}, // ionian / major
             {0, 2, 3, 5, 7, 9, 10}, // dorian
@@ -45,9 +42,9 @@ public:
             {0, 1, 4, 5, 7, 8, 10}, // spanish
             {0, 2, 4, 7, 9,12, 14},  // luoyin
     };
-    const uint16_t MaxScales = MAX_SCALES;
+    const uint16_t MaxScales = sizeof(Scales) / sizeof(Scales[0]);
 
-    const char ScaleNames[MAX_SCALES][5] = {
+    const char ScaleNames[10][5] = {
         "maj", "dor", "phr", "lyd", "mix", "min", "loc", "blu", "spa", "luo"
     };
 

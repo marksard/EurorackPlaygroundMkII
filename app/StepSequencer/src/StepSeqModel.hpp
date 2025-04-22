@@ -284,36 +284,39 @@ public:
 
     void generateSequence(int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
     {
-        // Serial.println("generateSequence\n");
-        randomSeed(micros());
-        byte geteSelect = rand(MAX_GATE_TIMINGS);
+        // Serial.println("generateSequence");
+        // Serial.print("octUnder: ");
+        // Serial.println(octUnder);
+        // Serial.print("octUpper: ");
+        // Serial.println(octUpper);
+        this->randomSeed(micros());
+        byte geteSelect = this->rand(MAX_GATE_TIMINGS);
     
         for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
         {
             // タイミングマップにランダムでタイミングをorして足す
             StepSeqModel::Gate gate = GateMap[geteSelect][i] == 1 ? 
-                (StepSeqModel::Gate)rand(gateMin, gateMax) : 
-                (StepSeqModel::Gate)(rand(2) ? getGate(i) : gateInitial);
+                (StepSeqModel::Gate)this->rand(gateMin, gateMax) : 
+                (StepSeqModel::Gate)(this->rand(2) ? getGate(i) : gateInitial);
             setGate(i, gate);
     
             // 変更前のメロディーラインをランダムに残して繋がりを持たせる
-            if (rand(2))
+            if (this->rand(2))
             {
                 continue;
             }
     
             // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
             // 0 ~ 24 + スケール音
-            setOctave(i, 1 + (rand(octUnder, octUpper)));
-            setKey(i, rand(MAX_SCALE_KEY));
-            setAcc(i, gate != StepSeqModel::Gate::_ && rand(0, 6) == 1 ? 1 : 0);
+            setOctave(i, 1 + (this->rand(octUnder, octUpper)));
+            setKey(i, this->rand(MAX_SCALE_KEY));
+            setAcc(i, gate != StepSeqModel::Gate::_ && this->rand(0, 6) == 1 ? 1 : 0);
         }
     }
     
     void resetSequence(int8_t gateInitial)
     {
         // Serial.println("resetSequence\n");
-        byte geteSelect = random(MAX_GATE_TIMINGS);
     
         for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
         {

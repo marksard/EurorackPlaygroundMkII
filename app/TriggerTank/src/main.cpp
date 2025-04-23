@@ -77,6 +77,10 @@ int8_t r2rScaleIndex[] = {0, 5, 7};
 static uint8_t r2rScaleIndexSize = sizeof(r2rScaleIndex) / sizeof(r2rScaleIndex[0]);
 uint8_t r2rOctMax = 2;
 static Quantizer quantizer(PWM_RESO);
+static bool shiftResisterUseInternalData = true;
+static uint8_t srOnsets = 10;
+static uint8_t srStepSize = 16;
+static Euclidean srInternalData;
 
 // Euclidean
 uint8_t euclidOnsets[OUT_COUNT] = {3, 5, 7, 10, 11};
@@ -167,15 +171,15 @@ uint8_t updateMainMode(int8_t encValue)
 {
     if (encValue > 0)
     {
-        mainMode = (mainMode + 1) % 4;
+        mainMode = (mainMode + 1) % 3;
     }
     else if (encValue < 0)
     {
-        mainMode = (mainMode + 3) % 4;
+        mainMode = (mainMode + 3) % 3;
     }
 
-    setLED(1, ((mainMode >> 1) & 0x01) ? 1 : 0, 1, 10);
-    setLED(2, (mainMode & 0x01) ? 1 : 0, 1, 10);
+    setLED(1, (((mainMode + 1) >> 1) & 0x01) ? 1 : 0, 1, 10);
+    setLED(2, ((mainMode + 1) & 0x01) ? 1 : 0, 1, 10);
 
     return mainMode;
 }
@@ -283,6 +287,8 @@ void initShiftRegister()
     {
         shiftRegister[i] = 0;
     }
+
+    srInternalData.generate(srOnsets, srStepSize);
 }
 
 void updateShiftRegisterProcedure()
@@ -333,6 +339,12 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
     {
         r2rOctMax = constrainCyclic(r2rOctMax + 1, 1, 5);
     }
+    if (btn1 == 2)
+    {
+        shiftResisterUseInternalData = shiftResisterUseInternalData ? false : true;
+        offLED(1);
+        offLED(2);
+    }
     else if (btn0 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
@@ -340,7 +352,10 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
     }
     else if (btn1 == 3)
     {
-        r2rScale = constrain(r2rScale + encValue, 0, r2rScaleIndexSize - 1);
+        // r2rScale = constrain(r2rScale + encValue, 0, r2rScaleIndexSize - 1);
+        srStepSize = constrain(srStepSize + encValue, srOnsets, 16);
+        srInternalData.generate(srOnsets, srStepSize);
+        setLevelIndicationDoubleLED(srStepSize, 16, 100);
     }
     else if (btn2 == 3)
     {
@@ -348,6 +363,14 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
     }
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
+        if (shiftResisterUseInternalData)
+        {
+            srOnsets = constrain(srOnsets + encValue, 1, 16);
+            srStepSize = constrain(srStepSize, srOnsets, 16);
+            srInternalData.generate(srOnsets, srStepSize);
+            setLED(1, srOnsets, 16, 100);
+            setLED(2, srInternalData.getCurrent(), 16, 100);
+        }
     }
 }
 
@@ -413,7 +436,7 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     }
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
-        euclidStep = constrain(euclidStep + encValue, 0, euclidStepsSize - 1);
+        euclidStep = constrain(euclidStep + encValue, 1, euclidStepsSize - 1);
         if (euclid[0].getStepSize() != euclidSteps[euclidStep])
         {
             for (int i = 0; i < OUT_COUNT; ++i)
@@ -480,7 +503,15 @@ void edgeCallback(uint gpio, uint32_t events)
             {
                 shiftRegister[i] = shiftRegister[i - 1];
             }
-            shiftRegister[0] = dataEdgeLatch ? 1 : 0;
+
+            if (shiftResisterUseInternalData)
+            {
+                shiftRegister[0] = srInternalData.getNext() ? 1 : 0;
+            }
+            else
+            {
+                shiftRegister[0] = dataEdgeLatch ? 1 : 0;
+            }
         }
         else
         {

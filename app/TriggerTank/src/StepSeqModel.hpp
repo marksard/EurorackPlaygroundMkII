@@ -300,11 +300,11 @@ public:
                 (StepSeqModel::Gate)(this->rand(2) ? getGate(i) : gateInitial);
             setGate(i, gate);
     
-            // 変更前のメロディーラインをランダムに残して繋がりを持たせる
-            if (this->rand(2))
-            {
-                continue;
-            }
+            // // 変更前のメロディーラインをランダムに残して繋がりを持たせる
+            // if (this->rand(2))
+            // {
+            //     continue;
+            // }
     
             // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
             // 0 ~ 24 + スケール音

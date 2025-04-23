@@ -21,6 +21,7 @@
 #include "../../commonlib/common/Euclidean.hpp"
 
 #include "StepSeqModel.hpp"
+#include "BlinkLED.hpp"
 
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
@@ -37,6 +38,8 @@ static Button buttons[3];
 static SmoothAnalogRead vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
+static BlinkLED led1;
+static BlinkLED led2;
 
 // TriggerTank common
 #define OUT_COUNT 5
@@ -47,16 +50,18 @@ static int16_t clockCount = 0;
 static int16_t resetCount = 64;
 
 static TriggerOut triggerOuts[OUT_COUNT];
-static uint8_t trigDurationMode = 0;
-// 0は通常のゲート出力、その他はトリガーパルス幅（%）
-static uint8_t trigDurations[] = {0, 2, 8, 16, 32, 64, 80};
+// トリガーパルス幅（%）、100は通常のゲート出力とする
+static uint8_t trigDurations[] = {2, 8, 16, 32, 64, 80, 100};
 static uint8_t trigDurationsSize = sizeof(trigDurations) / sizeof(trigDurations[0]);
+static uint8_t trigDurationMode = trigDurationsSize - 1;
 
 // ClockDivider
 volatile bool clockEdgeLatch = false;
 volatile bool dataEdgeLatch = false;
-static uint8_t divMode = 1;
+volatile bool clockGate = false;
+static uint8_t divMode = 2;
 static uint8_t divIndex[][OUT_COUNT] = {
+    {1, 2, 5, 8, 12},
     {2, 3, 4, 5, 6},
     {2, 4, 8, 16, 32},
     {3, 5, 7, 9, 11},
@@ -103,6 +108,61 @@ void initTriggerOuts()
     }
 }
 
+void initLED()
+{
+    initPWM(LED1, PWM_RESO);
+    led1.init(SAMPLE_FREQ);
+    led1.setWave(BlinkLED::Wave::SQU);
+    led1.setFrequency(100);
+    led1.setLevel(0, 0);
+    initPWM(LED2, PWM_RESO);
+    led2.init(SAMPLE_FREQ);
+    led2.setWave(BlinkLED::Wave::SQU);
+    led2.setFrequency(100);
+    led2.setLevel(0, 0);
+}
+
+void setLED(uint8_t led, uint8_t level, uint8_t max, int8_t freq = 10)
+{
+    if (led == 1)
+    {
+        led1.setFrequency(freq);
+        led1.setLevel(level, max);
+    }
+    else if (led == 2)
+    {
+        led2.setFrequency(freq);
+        led2.setLevel(level, max);
+    }
+}
+
+void offLED(uint8_t led)
+{
+    if (led == 1)
+    {
+        led1.setLevel(0, 0);
+    }
+    else if (led == 2)
+    {
+        led2.setLevel(0, 0);
+    }
+}
+
+void setLevelIndicationDoubleLED(uint8_t level, uint8_t max, int8_t freq)
+{
+    uint8_t maxHalf = max >> 1;
+    if (level <= maxHalf)
+    {
+        setLED(1, level, maxHalf, freq);
+        setLED(2, 0, freq);
+    }
+    else
+    {
+        setLED(1, 1, 1, freq);
+        setLED(2, level - maxHalf, maxHalf, freq);
+    }
+}
+
 uint8_t updateMainMode(int8_t encValue)
 {
     if (encValue > 0)
@@ -114,8 +174,8 @@ uint8_t updateMainMode(int8_t encValue)
         mainMode = (mainMode + 3) % 4;
     }
 
-    digitalWrite(LED2, mainMode & 0x01);
-    digitalWrite(LED1, (mainMode >> 1) & 0x01);
+    setLED(1, ((mainMode >> 1) & 0x01) ? 1 : 0, 1, 10);
+    setLED(2, (mainMode & 0x01) ? 1 : 0, 1, 10);
 
     return mainMode;
 }
@@ -164,7 +224,7 @@ void updateClockDividerProcedure()
         int16_t div = divIndex[divMode][i];
         // クロックカウンタの値をdivで割った余りが、divの半分より小さい場合にトリガーを出力する
         bool trig = (clockCount % div) < (div >> 1);
-        bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == 0 ? 0 : 1);
+        bool out = triggerOuts[i].getTriggerGate(div == 1 ? clockGate : trig, trigDurationMode == trigDurationsSize - 1 ? 0 : 1);
         triggerOuts[i].set(out);
     }
 
@@ -184,20 +244,24 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     }
     else if (btn1 == 2)
     {
-        clockCount = (clockCount + 1) % resetCount;        
+        clockCount = (clockCount + 1) % resetCount;
     }
     else if (btn0 == 3 && btn1 == 3)
     {
         requestGenerateSequence = true;
+        setLED(1, 1, 1, 20);
+        setLED(2, 1, 1, 20);
     }
     else if (btn0 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
+        setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
     else if (btn1 == 3)
     {
         stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
                                           stepSeqModel.keyStep.pos.getMax() + encValue);
+        setLevelIndicationDoubleLED(stepSeqModel.keyStep.pos.getMax(), 16, 100);
     }
     else if (btn2 == 3)
     {
@@ -206,6 +270,8 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
         divMode = constrain(divMode + encValue, 0, divIndexSize - 1);
+        setLED(1, clockCount, resetCount, 100);
+        setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
     }
 }
 
@@ -230,7 +296,7 @@ void updateShiftRegisterProcedure()
         {
             triggerOuts[i].setDuration(duration);
             bool trig = shiftRegister[shiftRegisterIndex[i] - 1] == 1;
-            bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == 0 ? 0 : 1);
+            bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == trigDurationsSize - 1 ? 0 : 1);
             triggerOuts[i].set(out);
         }
 
@@ -270,6 +336,7 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
     else if (btn0 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
+        setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
     else if (btn1 == 3)
     {
@@ -304,7 +371,7 @@ void updateEuclideanProcedure()
         {
             int8_t trig = euclid[i].getNext();
             triggerOuts[i].setDuration(duration);
-            bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == 0 ? 0 : 1);
+            bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == trigDurationsSize - 1 ? 0 : 1);
             triggerOuts[i].set(out);
         }
 
@@ -326,15 +393,19 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     if (btn0 == 3 && btn1 == 3)
     {
         requestGenerateSequence = true;
+        setLED(1, 1, 1, 20);
+        setLED(2, 1, 1, 20);
     }
     else if (btn0 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
+        setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
     else if (btn1 == 3)
     {
         stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
                                           stepSeqModel.keyStep.pos.getMax() + encValue);
+        setLevelIndicationDoubleLED(stepSeqModel.keyStep.pos.getMax(), 16, 100);
     }
     else if (btn2 == 3)
     {
@@ -343,13 +414,18 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
         euclidStep = constrain(euclidStep + encValue, 0, euclidStepsSize - 1);
-        for (int i = 0; i < OUT_COUNT; ++i)
+        if (euclid[0].getStepSize() != euclidSteps[euclidStep])
         {
-            uint8_t step = euclidSteps[euclidStep];
-            uint8_t onset = euclidOnsets[i];
-            onset = onset > step ? onset >> 1 : onset;
-            euclid[i].generate(onset, step);
+            for (int i = 0; i < OUT_COUNT; ++i)
+            {
+                uint8_t step = euclidSteps[euclidStep];
+                uint8_t onset = euclidOnsets[i];
+                onset = onset > step ? onset >> 1 : onset;
+                euclid[i].generate(onset, step);
+            }
         }
+        setLED(1, euclid[0].getStepSize(), 16, 100);
+        setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
     }
 }
 
@@ -398,6 +474,7 @@ void edgeCallback(uint gpio, uint32_t events)
             clockEdge.updateEdge(1);
             clockCount = (clockCount + 1) % resetCount;
             clockEdgeLatch = true;
+            clockGate = true;
 
             for (int i = 7; i > 0; --i)
             {
@@ -408,6 +485,7 @@ void edgeCallback(uint gpio, uint32_t events)
         else
         {
             clockEdge.updateEdge(0);
+            clockGate = false;
         }
     }
     else if (gpio == VOCT)
@@ -458,11 +536,9 @@ void setup()
     // cv1.init(CV1);
     cv2.init(CV2);
 
-    pinMode(LED1, OUTPUT);
-    pinMode(LED2, OUTPUT);
-
     initPWM(OUT6, PWM_RESO);
 
+    initLED();
     initTriggerOuts();
     initClockDivider();
     initEuclidean();
@@ -507,6 +583,9 @@ void loop()
         break;
     }
 
+    pwm_set_gpio_level(LED1, led1.getWaveValue());
+    pwm_set_gpio_level(LED2, led2.getWaveValue());
+
     sleep_us(50);
 }
 
@@ -535,6 +614,14 @@ void loop1()
     default:
         defaultUI(btn0, btn1, btn2, encValue);
         break;
+    }
+
+    if (btn0 == 2 || btn0 == 4 ||
+        btn1 == 2 || btn1 == 4 ||
+        btn2 == 2 || btn2 == 4)
+    {
+        offLED(1);
+        offLED(2);
     }
 
     sleep_us(1000);

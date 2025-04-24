@@ -59,19 +59,19 @@ static uint8_t trigDurationMode = trigDurationsSize - 1;
 volatile bool clockEdgeLatch = false;
 volatile bool dataEdgeLatch = false;
 volatile bool clockGate = false;
-static uint8_t divMode = 2;
-static uint8_t divIndex[][OUT_COUNT] = {
+static uint8_t divisionsIndex = 3;
+static uint8_t divisions[][OUT_COUNT] = {
     {1, 2, 5, 8, 12},
     {2, 3, 4, 5, 6},
     {2, 4, 8, 16, 32},
     {3, 5, 7, 9, 11},
 };
-static uint8_t divIndexSize = sizeof(divIndex) / sizeof(divIndex[0]);
+static uint8_t divisionsSize = sizeof(divisions) / sizeof(divisions[0]);
 
 // ShiftRegister
 #define SHIFT_REGISTER_SIZE 8
-uint8_t shiftRegister[SHIFT_REGISTER_SIZE] = {0};
-uint8_t shiftRegisterIndex[OUT_COUNT] = {1, 2, 3, 4, 5};
+uint8_t shiftRegisterValues[SHIFT_REGISTER_SIZE] = {0};
+uint8_t shiftRegisterBits[OUT_COUNT] = {1, 2, 3, 4, 5};
 uint8_t r2rScale = 1;
 int8_t r2rScaleIndex[] = {0, 5, 7};
 static uint8_t r2rScaleIndexSize = sizeof(r2rScaleIndex) / sizeof(r2rScaleIndex[0]);
@@ -83,10 +83,15 @@ static uint8_t srStepSize = 16;
 static Euclidean srInternalData;
 
 // Euclidean
-uint8_t euclidOnsets[OUT_COUNT] = {3, 5, 7, 10, 11};
-uint8_t euclidStep = 5;
-uint8_t euclidSteps[] = {6, 8, 10, 13, 15, 16};
-uint8_t euclidStepsSize = sizeof(euclidSteps) / sizeof(euclidSteps[0]);
+uint8_t euclidOnsetsIndex = 1;
+uint8_t euclidOnsets[][OUT_COUNT] = 
+{
+    {2, 4, 6, 7, 10},
+    {3, 5, 7, 8, 11},
+    {4, 6, 8, 9, 12},
+};
+static uint8_t euclidOnsetsSize = sizeof(euclidOnsets) / sizeof(euclidOnsets[0]);
+uint8_t euclidStep = 16;
 static Euclidean euclid[OUT_COUNT];
 
 // StepSeq
@@ -169,14 +174,7 @@ void setLevelIndicationDoubleLED(uint8_t level, uint8_t max, int8_t freq)
 
 uint8_t updateMainMode(int8_t encValue)
 {
-    if (encValue > 0)
-    {
-        mainMode = (mainMode + 1) % 3;
-    }
-    else if (encValue < 0)
-    {
-        mainMode = (mainMode + 3) % 3;
-    }
+    mainMode = constrainCyclic(mainMode + encValue, 0, 2);
 
     setLED(1, (((mainMode + 1) >> 1) & 0x01) ? 1 : 0, 1, 10);
     setLED(2, ((mainMode + 1) & 0x01) ? 1 : 0, 1, 10);
@@ -225,7 +223,7 @@ void updateClockDividerProcedure()
     for (int i = 0; i < OUT_COUNT; ++i)
     {
         triggerOuts[i].setDuration(duration);
-        int16_t div = divIndex[divMode][i];
+        int16_t div = divisions[divisionsIndex][i];
         // クロックカウンタの値をdivで割った余りが、divの半分より小さい場合にトリガーを出力する
         bool trig = (clockCount % div) < (div >> 1);
         bool out = triggerOuts[i].getTriggerGate(div == 1 ? clockGate : trig, trigDurationMode == trigDurationsSize - 1 ? 0 : 1);
@@ -273,7 +271,7 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     }
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
-        divMode = constrain(divMode + encValue, 0, divIndexSize - 1);
+        divisionsIndex = constrain(divisionsIndex + encValue, 0, divisionsSize - 1);
         setLED(1, clockCount, resetCount, 100);
         setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
     }
@@ -285,7 +283,7 @@ void initShiftRegister()
 
     for (int i = 0; i < SHIFT_REGISTER_SIZE; ++i)
     {
-        shiftRegister[i] = 0;
+        shiftRegisterValues[i] = 0;
     }
 
     srInternalData.generate(srOnsets, srStepSize);
@@ -301,7 +299,7 @@ void updateShiftRegisterProcedure()
         for (int i = 0; i < OUT_COUNT; ++i)
         {
             triggerOuts[i].setDuration(duration);
-            bool trig = shiftRegister[shiftRegisterIndex[i] - 1] == 1;
+            bool trig = shiftRegisterValues[shiftRegisterBits[i] - 1] == 1;
             bool out = triggerOuts[i].getTriggerGate(trig, trigDurationMode == trigDurationsSize - 1 ? 0 : 1);
             triggerOuts[i].set(out);
         }
@@ -309,7 +307,7 @@ void updateShiftRegisterProcedure()
         uint16_t r2rOut = 1;
         for (int i = 0; i < 8; ++i)
         {
-            r2rOut += (shiftRegister[i] ? 1 : 0) << i;
+            r2rOut += (shiftRegisterValues[i] ? 1 : 0) << i;
         }
 
         // quantizer
@@ -379,7 +377,7 @@ void initEuclidean()
     initTriggerOuts();
     for (int i = 0; i < OUT_COUNT; ++i)
     {
-        euclid[i].generate(euclidOnsets[i], euclidSteps[euclidStepsSize - 1]);
+        euclid[i].generate(euclidOnsets[euclidOnsetsIndex][i], euclidStep);
     }
 }
 
@@ -411,9 +409,35 @@ void updateEuclideanProcedure()
     }
 }
 
+void generateEuclideanSequence()
+{
+    for (int i = 0; i < OUT_COUNT; ++i)
+    {
+        uint8_t step = euclidStep;
+        uint8_t onset = euclidOnsets[euclidOnsetsIndex][i];
+        // Serial.print("euclid[");
+        // Serial.print(i);
+        // Serial.print("] = ");
+        // Serial.print(onset);
+        // Serial.print(",");
+        // Serial.print(step);
+        // Serial.println();
+        onset = (onset >= step - 1) ? constrain(step - (16 - onset), 1, step) : onset;
+        // Serial.print("changed = ");
+        // Serial.print(onset);
+        // Serial.println();
+        euclid[i].generate(onset, step);
+    }
+}
+
 void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
 {
-    if (btn0 == 3 && btn1 == 3)
+    if (btn0 == 2)
+    {
+        euclidOnsetsIndex = constrainCyclic(euclidOnsetsIndex + 1, 0, euclidOnsetsSize - 1);
+        generateEuclideanSequence();
+    }
+    else if (btn0 == 3 && btn1 == 3)
     {
         requestGenerateSequence = true;
         setLED(1, 1, 1, 20);
@@ -436,16 +460,10 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     }
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
-        euclidStep = constrain(euclidStep + encValue, 1, euclidStepsSize - 1);
-        if (euclid[0].getStepSize() != euclidSteps[euclidStep])
+        euclidStep = constrain(euclidStep + encValue, 2, 16);
+        if (euclid[0].getStepSize() != euclidStep)
         {
-            for (int i = 0; i < OUT_COUNT; ++i)
-            {
-                uint8_t step = euclidSteps[euclidStep];
-                uint8_t onset = euclidOnsets[i];
-                onset = onset > step ? onset >> 1 : onset;
-                euclid[i].generate(onset, step);
-            }
+            generateEuclideanSequence();
         }
         setLED(1, euclid[0].getStepSize(), 16, 100);
         setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
@@ -501,16 +519,16 @@ void edgeCallback(uint gpio, uint32_t events)
 
             for (int i = 7; i > 0; --i)
             {
-                shiftRegister[i] = shiftRegister[i - 1];
+                shiftRegisterValues[i] = shiftRegisterValues[i - 1];
             }
 
             if (shiftResisterUseInternalData)
             {
-                shiftRegister[0] = srInternalData.getNext() ? 1 : 0;
+                shiftRegisterValues[0] = srInternalData.getNext() ? 1 : 0;
             }
             else
             {
-                shiftRegister[0] = dataEdgeLatch ? 1 : 0;
+                shiftRegisterValues[0] = dataEdgeLatch ? 1 : 0;
             }
         }
         else

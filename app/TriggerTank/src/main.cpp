@@ -70,12 +70,12 @@ static uint8_t divisionsSize = sizeof(divisions) / sizeof(divisions[0]);
 
 // ShiftRegister
 #define SHIFT_REGISTER_SIZE 8
-uint8_t shiftRegisterValues[SHIFT_REGISTER_SIZE] = {0};
-uint8_t shiftRegisterBits[OUT_COUNT] = {1, 2, 3, 4, 5};
-uint8_t r2rScale = 1;
-int8_t r2rScaleIndex[] = {0, 5, 7};
+static uint8_t shiftRegisterValues[SHIFT_REGISTER_SIZE] = {0};
+static uint8_t shiftRegisterBits[OUT_COUNT] = {1, 2, 3, 4, 5};
+static uint8_t r2rScale = 1;
+static int8_t r2rScaleIndex[] = {0, 5, 7};
 static uint8_t r2rScaleIndexSize = sizeof(r2rScaleIndex) / sizeof(r2rScaleIndex[0]);
-uint8_t r2rOctMax = 2;
+static uint8_t r2rOctMax = 2;
 static Quantizer quantizer(PWM_RESO);
 static bool shiftResisterUseInternalData = true;
 static uint8_t srOnsets = 10;
@@ -83,20 +83,22 @@ static uint8_t srStepSize = 16;
 static Euclidean srInternalData;
 
 // Euclidean
-uint8_t euclidOnsetsIndex = 1;
-uint8_t euclidOnsets[][OUT_COUNT] = 
+static uint8_t euclidOnsetsIndex = 1;
+static uint8_t euclidOnsets[][OUT_COUNT] = 
 {
-    {2, 4, 6, 7, 10},
-    {3, 5, 7, 8, 11},
-    {4, 6, 8, 9, 12},
+    {2, 4, 6, 7, 9},
+    {3, 5, 7, 8, 7},
+    {4, 6, 8, 9, 5},
+    {5, 7, 9, 6, 3},
+    {6, 8, 5, 3, 2},
 };
 static uint8_t euclidOnsetsSize = sizeof(euclidOnsets) / sizeof(euclidOnsets[0]);
-uint8_t euclidStep = 16;
+static uint8_t euclidStep = 16;
 static Euclidean euclid[OUT_COUNT];
 
 // StepSeq
-StepSeqModel stepSeqModel;
-bool requestGenerateSequence = false;
+static StepSeqModel stepSeqModel;
+static bool requestGenerateSequence = false;
 
 template <typename vs = int8_t>
 vs constrainCyclic(vs value, vs min, vs max)
@@ -248,6 +250,10 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     {
         clockCount = (clockCount + 1) % resetCount;
     }
+    else if (btn2 == 2)
+    {
+        updateMainMode(1);
+    }
     else if (btn0 == 3 && btn1 == 3)
     {
         requestGenerateSequence = true;
@@ -256,18 +262,17 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     }
     else if (btn0 == 3)
     {
-        trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
-        setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
     else if (btn1 == 3)
     {
         stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
                                           stepSeqModel.keyStep.pos.getMax() + encValue);
-        setLevelIndicationDoubleLED(stepSeqModel.keyStep.pos.getMax(), 16, 100);
+        setLevelIndicationDoubleLED(stepSeqModel.keyStep.pos.getMax(), MAX_GATE_STEP, 100);
     }
     else if (btn2 == 3)
     {
-        updateMainMode(encValue);
+        trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
+        setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
@@ -335,7 +340,6 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
 {
     if (btn0 == 2)
     {
-        r2rOctMax = constrainCyclic(r2rOctMax + 1, 1, 5);
     }
     if (btn1 == 2)
     {
@@ -343,31 +347,41 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
         offLED(1);
         offLED(2);
     }
+    else if (btn2 == 2)
+    {
+        updateMainMode(1);
+    }
     else if (btn0 == 3)
+    {
+        if (shiftResisterUseInternalData)
+        {
+            srOnsets = constrain(srOnsets + encValue, 1, Euclidean::EUCLID_MAX_STEPS);
+            srStepSize = constrain(srStepSize, srOnsets, Euclidean::EUCLID_MAX_STEPS);
+            srInternalData.generate(srOnsets, srStepSize);
+            setLevelIndicationDoubleLED(srOnsets, Euclidean::EUCLID_MAX_STEPS, 100);
+        }
+    }
+    else if (btn1 == 3)
+    {
+        if (shiftResisterUseInternalData)
+        {
+            srStepSize = constrain(srStepSize + encValue, srOnsets, Euclidean::EUCLID_MAX_STEPS);
+            srInternalData.generate(srOnsets, srStepSize);
+            setLevelIndicationDoubleLED(srStepSize, Euclidean::EUCLID_MAX_STEPS, 100);
+        }
+    }
+    else if (btn2 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
         setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
-    else if (btn1 == 3)
-    {
-        // r2rScale = constrain(r2rScale + encValue, 0, r2rScaleIndexSize - 1);
-        srStepSize = constrain(srStepSize + encValue, srOnsets, 16);
-        srInternalData.generate(srOnsets, srStepSize);
-        setLevelIndicationDoubleLED(srStepSize, 16, 100);
-    }
-    else if (btn2 == 3)
-    {
-        updateMainMode(encValue);
-    }
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
+        r2rOctMax = constrain(r2rOctMax + encValue, 1, 5);
         if (shiftResisterUseInternalData)
         {
-            srOnsets = constrain(srOnsets + encValue, 1, 16);
-            srStepSize = constrain(srStepSize, srOnsets, 16);
-            srInternalData.generate(srOnsets, srStepSize);
-            setLED(1, srOnsets, 16, 100);
-            setLED(2, srInternalData.getCurrent(), 16, 100);
+            setLED(1, srOnsets, Euclidean::EUCLID_MAX_STEPS, 100);
+            setLED(2, srInternalData.getCurrent(), Euclidean::EUCLID_MAX_STEPS, 100);
         }
     }
 }
@@ -422,7 +436,7 @@ void generateEuclideanSequence()
         // Serial.print(",");
         // Serial.print(step);
         // Serial.println();
-        onset = (onset >= step - 1) ? constrain(step - (16 - onset), 1, step) : onset;
+        onset = (onset >= step - 1) ? constrain(step - (Euclidean::EUCLID_MAX_STEPS - onset), 1, step) : onset;
         // Serial.print("changed = ");
         // Serial.print(onset);
         // Serial.println();
@@ -434,8 +448,13 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
 {
     if (btn0 == 2)
     {
-        euclidOnsetsIndex = constrainCyclic(euclidOnsetsIndex + 1, 0, euclidOnsetsSize - 1);
-        generateEuclideanSequence();
+    }
+    if (btn1 == 2)
+    {
+    }
+    else if (btn2 == 2)
+    {
+        updateMainMode(1);
     }
     else if (btn0 == 3 && btn1 == 3)
     {
@@ -445,27 +464,29 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     }
     else if (btn0 == 3)
     {
-        trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
-        setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
+        euclidStep = constrain(euclidStep + encValue, 2, Euclidean::EUCLID_MAX_STEPS);
+        if (euclid[0].getStepSize() != euclidStep)
+        {
+            generateEuclideanSequence();
+        }
+        setLevelIndicationDoubleLED(euclid[0].getStepSize(), Euclidean::EUCLID_MAX_STEPS, 100);
     }
     else if (btn1 == 3)
     {
         stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
                                           stepSeqModel.keyStep.pos.getMax() + encValue);
-        setLevelIndicationDoubleLED(stepSeqModel.keyStep.pos.getMax(), 16, 100);
+        setLevelIndicationDoubleLED(stepSeqModel.keyStep.pos.getMax(), MAX_GATE_STEP, 100);
     }
     else if (btn2 == 3)
     {
-        updateMainMode(encValue);
+        trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
+        setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
-        euclidStep = constrain(euclidStep + encValue, 2, 16);
-        if (euclid[0].getStepSize() != euclidStep)
-        {
-            generateEuclideanSequence();
-        }
-        setLED(1, euclid[0].getStepSize(), 16, 100);
+        euclidOnsetsIndex = constrainCyclic(euclidOnsetsIndex + encValue, 0, euclidOnsetsSize - 1);
+        generateEuclideanSequence();
+        setLED(1, euclid[0].getCurrent(), Euclidean::EUCLID_MAX_STEPS, 100);
         setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
     }
 }
@@ -500,9 +521,9 @@ void defaultProcedure()
 
 void defaultUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
 {
-    if (btn2 == 3)
+    if (btn2 == 2)
     {
-        updateMainMode(encValue);
+        updateMainMode(1);
     }
 }
 
@@ -590,6 +611,7 @@ void setup()
     initLED();
     initTriggerOuts();
     initClockDivider();
+    initShiftRegister();
     initEuclidean();
     initDefault();
     stepSeqModel.resetSequence(StepSeqModel::Gate::S);

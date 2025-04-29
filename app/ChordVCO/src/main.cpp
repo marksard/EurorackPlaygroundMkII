@@ -29,7 +29,9 @@
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
 // #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4) // 64941.40625khz
+// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4) // 64941.40625khz
+// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 6) // 43294.27khz
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
 // #define SAMPLE_FREQ 88200
 static uint interruptSliceNum;
 

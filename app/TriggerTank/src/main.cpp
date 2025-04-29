@@ -1,6 +1,6 @@
 /*!
- * Clock Divider
- * Copyright 2024 marksard
+ * Trigger Happy Prototype
+ * Copyright 2025 marksard
  * This software is released under the MIT license.
  * see https://opensource.org/licenses/MIT
  */
@@ -242,41 +242,49 @@ void updateClockDividerProcedure()
 
 void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
 {
+    // A
     if (btn0 == 2)
     {
         clockCount = resetCount - 1; // スタートポジションを合わせる
     }
+    // B
     else if (btn1 == 2)
     {
         clockCount = (clockCount + 1) % resetCount;
     }
+    // M
     else if (btn2 == 2)
     {
         updateMainMode(1);
     }
+    // A+B
     else if (btn0 == 3 && btn1 == 3)
     {
         requestGenerateSequence = true;
         setLED(1, 1, 1, 20);
         setLED(2, 1, 1, 20);
     }
+    // A+Enc
     else if (btn0 == 3)
     {
     }
+    // B+Enc
     else if (btn1 == 3)
     {
-        stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
-                                          stepSeqModel.keyStep.pos.getMax() + encValue);
-        setLevelIndicationDoubleLED(stepSeqModel.keyStep.pos.getMax(), MAX_GATE_STEP, 100);
+        divisionsIndex = constrain(divisionsIndex + encValue, 0, divisionsSize - 1);
+        setLevelIndicationDoubleLED(divisionsIndex, divisionsSize - 1, 100);
     }
+    // M+Enc
     else if (btn2 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
         setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
+    // Enc only
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
-        divisionsIndex = constrain(divisionsIndex + encValue, 0, divisionsSize - 1);
+        stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
+                                          stepSeqModel.keyStep.pos.getMax() + encValue);
         setLED(1, clockCount, resetCount, 100);
         setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
     }
@@ -338,19 +346,23 @@ void updateShiftRegisterProcedure()
 
 void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
 {
+    // A
     if (btn0 == 2)
     {
     }
+    // B
     if (btn1 == 2)
     {
         shiftResisterUseInternalData = shiftResisterUseInternalData ? false : true;
         offLED(1);
         offLED(2);
     }
+    // M
     else if (btn2 == 2)
     {
         updateMainMode(1);
     }
+    // A+Enc
     else if (btn0 == 3)
     {
         if (shiftResisterUseInternalData)
@@ -361,6 +373,7 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
             setLevelIndicationDoubleLED(srOnsets, Euclidean::EUCLID_MAX_STEPS, 100);
         }
     }
+    // B+Enc
     else if (btn1 == 3)
     {
         if (shiftResisterUseInternalData)
@@ -370,11 +383,13 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
             setLevelIndicationDoubleLED(srStepSize, Euclidean::EUCLID_MAX_STEPS, 100);
         }
     }
+    // M+Enc
     else if (btn2 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
         setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
+    // Enc Only
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
         r2rOctMax = constrain(r2rOctMax + encValue, 1, 5);
@@ -446,46 +461,51 @@ void generateEuclideanSequence()
 
 void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
 {
+    // A
     if (btn0 == 2)
     {
     }
+    // B
     if (btn1 == 2)
     {
     }
+    // M
     else if (btn2 == 2)
     {
         updateMainMode(1);
     }
+    // A+B
     else if (btn0 == 3 && btn1 == 3)
     {
         requestGenerateSequence = true;
         setLED(1, 1, 1, 20);
         setLED(2, 1, 1, 20);
     }
+    // A+Enc
     else if (btn0 == 3)
     {
-        euclidStep = constrain(euclidStep + encValue, 2, Euclidean::EUCLID_MAX_STEPS);
-        if (euclid[0].getStepSize() != euclidStep)
-        {
-            generateEuclideanSequence();
-        }
-        setLevelIndicationDoubleLED(euclid[0].getStepSize(), Euclidean::EUCLID_MAX_STEPS, 100);
+        euclidOnsetsIndex = constrainCyclic(euclidOnsetsIndex + encValue, 0, euclidOnsetsSize - 1);
+        generateEuclideanSequence();
+        setLevelIndicationDoubleLED(euclid[0].getOnsets(), Euclidean::EUCLID_MAX_STEPS, 100);
     }
+    // B+Enc
     else if (btn1 == 3)
     {
-        stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
-                                          stepSeqModel.keyStep.pos.getMax() + encValue);
-        setLevelIndicationDoubleLED(stepSeqModel.keyStep.pos.getMax(), MAX_GATE_STEP, 100);
+        euclidStep = constrain(euclidStep + encValue, 4, Euclidean::EUCLID_MAX_STEPS);
+        generateEuclideanSequence();
+        setLevelIndicationDoubleLED(euclid[0].getStepSize(), Euclidean::EUCLID_MAX_STEPS, 100);
     }
+    // M+Enc
     else if (btn2 == 3)
     {
         trigDurationMode = constrain(trigDurationMode + encValue, 0, trigDurationsSize - 1);
         setLevelIndicationDoubleLED(trigDurationMode, trigDurationsSize - 1, 100);
     }
+    // Enc Only
     else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
     {
-        euclidOnsetsIndex = constrainCyclic(euclidOnsetsIndex + encValue, 0, euclidOnsetsSize - 1);
-        generateEuclideanSequence();
+        stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
+                                          stepSeqModel.keyStep.pos.getMax() + encValue);
         setLED(1, euclid[0].getCurrent(), Euclidean::EUCLID_MAX_STEPS, 100);
         setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
     }

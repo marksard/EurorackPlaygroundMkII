@@ -40,7 +40,6 @@ public:
         }
 
         _needWait = needWait;
-        _lockfreeTime = 10 * 1000 * 1000;
     }
 
     /// @brief ボタン状態を取得
@@ -49,15 +48,12 @@ public:
     {
         uint8_t value = readPin();
         ulong micro = micros();
-        if (_needWait && micro < _leadLastMicros + 1000)
-        {
-            if (micro < _leadLastMicros + _lockfreeTime)
-            {
-                _leadLastMicros = micros();
-            }
 
+        if (_needWait && (micros() - _leadLastMicros) < 1000)
+        {
             return _lastResult;
         }
+
         _leadLastMicros = micros();
         _lastResult = 0;
 
@@ -126,7 +122,6 @@ protected:
     ulong _lastMicros;
     ulong _holdTime;
     ulong _leadLastMicros;
-    ulong _lockfreeTime;
     uint8_t _lastResult;
     bool _needWait;
 

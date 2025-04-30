@@ -484,9 +484,9 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     // A+Enc
     else if (btn0 == 3)
     {
-        euclidOnsetsIndex = constrainCyclic(euclidOnsetsIndex + encValue, 0, euclidOnsetsSize - 1);
+        euclidOnsetsIndex = constrain(euclidOnsetsIndex + encValue, 0, euclidOnsetsSize - 1);
         generateEuclideanSequence();
-        setLevelIndicationDoubleLED(euclid[0].getOnsets(), Euclidean::EUCLID_MAX_STEPS, 100);
+        setLevelIndicationDoubleLED(euclidOnsetsIndex, euclidOnsetsSize - 1, 100);
     }
     // B+Enc
     else if (btn1 == 3)

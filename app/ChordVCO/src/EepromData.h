@@ -33,7 +33,7 @@ struct UserConfig
     int16_t rootMinus;
     int16_t seventhMinus;
     int16_t voctHold;
-    int16_t boostLevel;
+    int16_t scale;
     int16_t quantizeCV;
     int16_t quantizeScale;
     int16_t quantizeOct;
@@ -57,7 +57,7 @@ void initUserConfig(UserConfig *pUserConfig)
     pUserConfig->rootMinus = 1;
     pUserConfig->seventhMinus = 0;
     pUserConfig->voctHold = 0;
-    pUserConfig->boostLevel = 0;
+    pUserConfig->scale = 0;
     pUserConfig->quantizeCV = 1;
     pUserConfig->quantizeScale = 5;
     pUserConfig->quantizeOct = 3;

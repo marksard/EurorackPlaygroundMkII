@@ -24,7 +24,7 @@
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
 // #define PWM_RESO 4096         // 12bit
-#define PWM_RESO 2048         // 11bit
+#define PWM_RESO 2048 // 11bit
 // #define PWM_RESO 1024         // 10bit
 #define DAC_MAX_MILLVOLT 5000 // mV
 #define ADC_RESO 4096
@@ -32,7 +32,6 @@
 // #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4) // 64941.40625khz
 // #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 6) // 43294.27khz
 #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
-// #define SAMPLE_FREQ 88200
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -44,7 +43,7 @@ static EdgeChecker gate;
 static SmoothAnalogRead vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
-static int pwmOuts[6] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
+static int pwmOuts[6] = {OUT1, OUT2, OUT3, OUT4, OUT5, OUT6};
 
 // ユーザー設定
 static UserConfig userConfig;
@@ -58,38 +57,40 @@ static Oscillator osc[4];
 static float max_coarse_freq = VCO_MAX_COARSE_FREQ;
 static int8_t arpStep = 0;
 static Quantizer quantizer(PWM_RESO);
+static int16_t bias = (PWM_RESO / 2) - 1;
+static int16_t peak = 1023 * 4; // 4和音分のピーク値を初期値に
 
-static uint8_t addRootScale[7][4] = 
+static uint8_t addRootScale[][7][4] =
 {
-    {0, 3, 7, 10}, // Im7
-    {0, 3, 6, 10}, // IIdim
-    {0, 4, 7, 11}, // IIIM7
-    {0, 3, 7, 10}, // IVm7
-    {0, 3, 7, 10}, // Vm7
-    {0, 4, 7, 11}, // VIM7
-    {0, 4, 7, 10}, // VII7
+    // minor
+    {
+        {0, 3, 7, 10}, // Im7
+        {0, 3, 6, 10}, // IIdim
+        {0, 4, 7, 11}, // IIIM7
+        {0, 3, 7, 10}, // IVm7
+        {0, 3, 7, 10}, // Vm7
+        {0, 4, 7, 11}, // VIM7
+        {0, 4, 7, 10}, // VII7
+    },
+    // major
+    {
+        {0, 4, 7, 11}, // IM7
+        {0, 3, 7, 10}, // IIm7
+        {0, 3, 7, 10}, // IIIm7
+        {0, 4, 7, 11}, // IVM7
+        {0, 4, 7, 10}, // V7
+        {0, 3, 7, 10}, // VIm7
+        {0, 3, 6, 10}, // VIIdim7
+    }
 };
 
-static uint8_t rootScaleIndexFromSemitone[] = 
+static uint8_t rootScaleIndexFromSemitone[][12] =
 {
-    0,0,1,2,0,3,0,4,5,0,0,6
+    // minor
+    {0, 0, 1, 2, 0, 3, 0, 4, 5, 0, 6, 0},
+    {0, 0, 1, 0, 2, 3, 0, 4, 0, 5, 0, 6}
 };
 
-// static uint8_t addRootScale[7][4] = 
-// {
-//     {0, 3, 7, 11}, // ImM7
-//     {0, 3, 6, 10}, // IIdim
-//     {0, 4, 8, 11}, // IIIM7#5
-//     {0, 3, 7, 10}, // IVm7
-//     {0, 4, 7, 10}, // V7
-//     {0, 4, 7, 11}, // VIM7
-//     {0, 3, 6,  9}, // VIIdim
-// };
-
-// static uint8_t rootScaleIndexFromSemitone[] = 
-// {
-//     0,0,1,2,0,3,0,4,5,0,6,0
-// };
 
 // 画面周り
 #define MENU_MAX (1 + 1)
@@ -102,25 +103,25 @@ const char selCV[][5] = {"---", "CV1", "CV2"};
 const char selOct[][5] = {"---", "12", "24"};
 const char selArp[][5] = {"---", "UP", "DOWN", "RAND"};
 const char selHold[][5] = {"FREE", "GATE"};
-static SmoothRandomCV smoothRand(ADC_RESO);
+const char scales[][5] = {"MIN", "MAJ"};
+// static SmoothRandomCV smoothRand(ADC_RESO);
 
 SettingItem16 commonSettings[] =
-{
-    SettingItem16(0, 2, 1, &userConfig.rootMinus, "ROOT: %s", selOct, 3),
-    SettingItem16(0, 2, 1, &userConfig.seventhMinus, "7TH: %s", selOct, 3),
-    SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "ParamCV: %s", selCV, 3),
-    SettingItem16(0, 3, 1, &userConfig.arpMode, "OUT2 ARP: %s", selArp, 4),
-    SettingItem16(0, 1, 1, &userConfig.voctHold, "HOLD MODE: %s", selHold, 2),
-    SettingItem16(0, 50, 1, &userConfig.boostLevel, "BOOST LVL: %2d", NULL, 0),
-    SettingItem16(-200, 200, 1, &userConfig.voctTune, "INIT VOCT:%4d", NULL, 0)
-};
+    {
+        SettingItem16(0, 2, 1, &userConfig.rootMinus, "ROOT: %s", selOct, 3),
+        SettingItem16(0, 2, 1, &userConfig.seventhMinus, "7TH: %s", selOct, 3),
+        SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "ParamCV: %s", selCV, 3),
+        SettingItem16(0, 3, 1, &userConfig.arpMode, "OUT2 ARP: %s", selArp, 4),
+        SettingItem16(0, 1, 1, &userConfig.voctHold, "HOLD MODE: %s", selHold, 2),
+        SettingItem16(0, 1, 1, &userConfig.scale, "SCALE: %s", scales, 2),
+        SettingItem16(-200, 200, 1, &userConfig.voctTune, "INIT VOCT:%4d", NULL, 0)};
 
 SettingItem16 quantizerSettings[] =
-{
-    SettingItem16(0, 2, 1, &userConfig.quantizeCV, "INPUT: %s", selCV, 3),
-    SettingItem16(0, quantizer.MaxScales, 1, &userConfig.quantizeScale, "SCALE: %s", quantizer.ScaleNames, quantizer.MaxScales),
-    SettingItem16(1, 5, 1, &userConfig.quantizeOct, "OCT:%2d", NULL, 0),
-    SettingItem16(0, 1, 1, &userConfig.quantizeHold, "HOLD MODE: %s", selHold, 2),
+    {
+        SettingItem16(0, 2, 1, &userConfig.quantizeCV, "INPUT: %s", selCV, 3),
+        SettingItem16(0, quantizer.MaxScales, 1, &userConfig.quantizeScale, "SCALE: %s", quantizer.ScaleNames, quantizer.MaxScales),
+        SettingItem16(1, 5, 1, &userConfig.quantizeOct, "OCT:%2d", NULL, 0),
+        SettingItem16(0, 1, 1, &userConfig.quantizeHold, "HOLD MODE: %s", selHold, 2),
 };
 
 static MenuSection16 menu[] = {
@@ -239,8 +240,6 @@ void dispOLED()
     u8g2.sendBuffer();
 }
 
-static int16_t bias = (PWM_RESO / 2) - 1;
-static int16_t chord_value = 0;
 void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
@@ -254,19 +253,18 @@ void interruptPWM()
         sum += values[i] - bias;
     }
 
-    // 平均してSQU以外は少しゲインを持ち上げる
-    chord_value = (sum >> 2) + bias;
-    if (osc[0].getWave() == Oscillator::Wave::SQU)
-    {
-        chord_value *= 0.8;
-    }
-    else
-    {
-        chord_value *= (110 + userConfig.boostLevel) * 0.01;
-    }
-    chord_value = constrain(chord_value, 0, PWM_RESO - 1);
+    int16_t absSum = abs(sum);
+    peak = (absSum > peak) ? absSum : peak - 1; // 徐々に減衰させる
 
-    pwm_set_gpio_level(OUT1, chord_value);
+    // 4和音平均のための4割るのを避けつつAGC処理させる
+    // 逆数計算としたときの浮動小数も避けるために、1024を256倍している
+    // 262144 = 1024 << 8
+    // 90 = 0.35 * 256… 0.35倍を最大ゲインにするため256倍した90としている
+    int32_t gain = min(262144 / peak, 90);
+    int16_t mixValue = ((sum * gain) >> 8); // gainは256倍しているので、右シフト8bitで割る
+    int16_t chordValue = constrain(mixValue + bias, 0, PWM_RESO - 1);
+
+    pwm_set_gpio_level(OUT1, chordValue);
     pwm_set_gpio_level(OUT2, values[arpStep]);
     pwm_set_gpio_level(OUT6, osc[0].getRandom16(PWM_RESO));
     // gpio_put(LED1, LOW);
@@ -359,12 +357,13 @@ void loop()
             rootConfirmCount = 0;
         }
     }
-    else {
+    else
+    {
         rootConfirmCount = 0;
     }
 
     uint8_t rootDiff = (rootIndex - courceIndex) % 12;
-    uint8_t scaleIndex = rootScaleIndexFromSemitone[rootDiff];
+    uint8_t scaleIndex = rootScaleIndexFromSemitone[userConfig.scale][rootDiff];
     int8_t rootMinus = userConfig.rootMinus * -12;
     int8_t seventhMinus = userConfig.seventhMinus * 12;
 
@@ -383,10 +382,10 @@ void loop()
 
     if (userConfig.voctHold == 0 || (userConfig.voctHold == 1 && gate.getEdge()))
     {
-        osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][0] + rootMinus);
-        osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][1]);
-        osc[2].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][2]);
-        osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[scaleIndex][3] + seventhMinus);
+        osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][0] + rootMinus);
+        osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][1]);
+        osc[2].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][2]);
+        osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][3] + seventhMinus);
     }
 
     if (userConfig.quantizeHold == 0 || (userConfig.quantizeHold == 1 && gate.getEdge()))
@@ -429,7 +428,7 @@ void loop()
     //     // Serial.print(coarseB);
     //     // Serial.print(", ");
     //     // Serial.print(freqencyB);
-    //     Serial.print(bias_avg);
+    //     Serial.print(peak);
     //     Serial.print(", ");
     //     Serial.println();
     // }
@@ -474,7 +473,7 @@ void loop1()
         if (menuIndex >= MENU_MAX - 1)
         {
             requiresUpdate |= menuControl.select(encValue);
-            if (menuControl.isUnder()) 
+            if (menuControl.isUnder())
             {
                 menuIndex--;
                 requiresUpdate = true;
@@ -531,7 +530,7 @@ void loop1()
                 // OLED描画更新でノイズが乗るので必要時以外更新しない
                 requiresUpdate |= osc[i].setNoteNameFromFrequency(userConfig.oscACoarse);
                 requiresUpdate |= osc[i].setWave((Oscillator::Wave)
-                                                    constrainCyclic((int)osc[i].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
+                                                     constrainCyclic((int)osc[i].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
                 requiresUpdate |= osc[i].setFreqName(userConfig.oscACoarse);
 
                 userConfig.oscAWave = osc[i].getWave();

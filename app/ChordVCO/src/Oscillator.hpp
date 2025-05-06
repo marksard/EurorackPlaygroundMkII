@@ -113,8 +113,8 @@ public:
         _heightHalf = WAVE_HEIGHT >> 1;
         _heightM1 = WAVE_HEIGHT - 1;
         _interruptClock = clock;
+        _coarse = 0;
         // _halfReso = _reso >> 1;
-        _coarse = 0.0;
         _lastValue = 0;
         _isFolding = false;
     }
@@ -204,21 +204,19 @@ public:
 
     void startFolding(int8_t value) { _isFolding = value != 0 ? true : false; }
 
-    bool setNoteNameFromFrequency(float frequency)
+    bool setCourceFromNoteNameIndex(int8_t noteNameIndex)
     {
-        uint8_t noteNameIndex = 0;
-        for (int i = 127; i >= 0; --i)
-        {
-            if (noteFreq[i] <= frequency)
-            {
-                noteNameIndex = i + 1;
-                break;
-            }
-        }
         bool result = _noteNameIndex != noteNameIndex;
+        if (noteNameIndex < 0)
+        {
+            noteNameIndex = 0;
+        }
         _noteNameIndex = noteNameIndex;
+        _coarse = noteFreq[noteNameIndex];
         return result;
     }
+
+    float getCource() { return _coarse; }
 
     uint8_t getNoteNameIndexFromFreq(float frequency)
     {
@@ -226,7 +224,7 @@ public:
         {
             if (noteFreq[i] <= frequency)
             {
-                return i + 1;
+                return i;
             }
         }
 
@@ -243,17 +241,6 @@ public:
         setFrequency(frequency);
     }
 
-    bool setFreqName(float frequency)
-    {
-        bool result = false;
-        if (frequency > (_coarse + 0.1) || frequency < (_coarse - 0.1))
-        {
-            result = true;
-            _coarse = frequency;
-        }
-        return result;
-    }
-
     bool setWave(Wave value)
     {
         bool result = _wave != value;
@@ -266,17 +253,6 @@ public:
     Wave getWave() { return _wave; }
     const char *getWaveName() { return waveName[_wave]; }
     const char *getNoteName() { return noteName[_noteNameIndex]; }
-
-    const char *getNoteNameOrFreq(bool freqName = true)
-    {
-        if (freqName)
-        {
-            sprintf(_freqName, "%5.1f", _coarse);
-            return _freqName;
-        }
-
-        return noteName[_noteNameIndex];
-    }
 
     uint16_t getRandom16(uint16_t max) { return getRandomFast() % max; }
 
@@ -293,7 +269,6 @@ private:
     uint16_t _halfReso;
     LimitValue<int8_t> _phaseShift;
     LimitValue<int16_t> _folding;
-    char _freqName[8];
     float _coarse;
     uint16_t _lastValue;
     uint32_t m_w = 1;

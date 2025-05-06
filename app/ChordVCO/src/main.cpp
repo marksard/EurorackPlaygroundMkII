@@ -50,11 +50,9 @@ static UserConfig userConfig;
 static bool saveConfirm = false;
 
 // triple vco
-#define VCO_MAX_COARSE_FREQ 440
-#define LFO_MAX_COARSE_FREQ 66
+#define VCO_MAX_ROOT_INDEX 96 // noteNameのC7
 #define EXP_CURVE(value, ratio) (exp((value * (ratio / (ADC_RESO - 1)))) - 1) / (exp(ratio) - 1)
 static Oscillator osc[4];
-static float max_coarse_freq = VCO_MAX_COARSE_FREQ;
 static int8_t arpStep = 0;
 static Quantizer quantizer(PWM_RESO);
 static int16_t bias = (PWM_RESO / 2) - 1;
@@ -131,54 +129,37 @@ static MenuSection16 menu[] = {
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
 
-static char modeDisp[1][4] = {"VCO"};
-static char oscNames[1][2] = {"A"};
-void drawOSC(uint8_t oscIndex, uint8_t rangeMode)
+void drawOSC()
 {
     static char disp_buf[33] = {0};
     // u8g2.setFont(u8g2_font_VCR_OSD_tf);
     u8g2.setFont(u8g2_font_7x14B_tf);
-    if (oscIndex == 2)
-    {
-        sprintf(disp_buf, "%s", modeDisp[rangeMode]);
-        u8g2.drawStr(0, 0, disp_buf);
-        // sprintf(disp_buf, "%s", osc[oscIndex].getNoteNameOrFreq(rangeMode));
-        // u8g2.drawStr(0, 48, disp_buf);
-        u8g2.setFont(u8g2_font_logisoso26_tf);
-        sprintf(disp_buf, "%s", osc[oscIndex].getWaveName());
-        u8g2.drawStr(0, 16, disp_buf);
-        if (encMode == 0)
-            u8g2.drawBox(0, 13, 127, 2);
-        else
-            u8g2.drawBox(0, 44, 127, 2);
-        return;
-    }
 
-    sprintf(disp_buf, "%s %s", modeDisp[rangeMode], oscNames[oscIndex]);
+    sprintf(disp_buf, "Chord VCO: %s", scales[userConfig.scale]);
     u8g2.drawStr(0, 0, disp_buf);
 
-    if (osc[oscIndex].getWave() == Oscillator::Wave::SAW || osc[oscIndex].getWave() == Oscillator::Wave::MUL_TRI)
+    if (osc[0].getWave() == Oscillator::Wave::SAW || osc[0].getWave() == Oscillator::Wave::MUL_TRI)
     {
         if (userConfig.oscAParaCV > 0)
-            sprintf(disp_buf, "%s p:cv%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), userConfig.oscAParaCV);
+            sprintf(disp_buf, "Root:%s Phase:cv%d", osc[0].getNoteName(), userConfig.oscAParaCV);
         else
-            sprintf(disp_buf, "%s p:%02d", osc[oscIndex].getNoteNameOrFreq(rangeMode), osc[oscIndex].getPhaseShift());
+            sprintf(disp_buf, "Root:%s Phase:%02d", osc[0].getNoteName(), osc[0].getPhaseShift());
     }
-    else if (osc[oscIndex].getWave() == Oscillator::Wave::TRI ||
-             osc[oscIndex].getWave() == Oscillator::Wave::SINE)
+    else if (osc[0].getWave() == Oscillator::Wave::TRI ||
+             osc[0].getWave() == Oscillator::Wave::SINE)
     {
         if (userConfig.oscAParaCV > 0)
-            sprintf(disp_buf, "%s f:cv%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), userConfig.oscAParaCV);
+            sprintf(disp_buf, "Root:%s Fold:cv%d", osc[0].getNoteName(), userConfig.oscAParaCV);
         else
-            sprintf(disp_buf, "%s f:%02d", osc[oscIndex].getNoteNameOrFreq(rangeMode), osc[oscIndex].getFolding());
+            sprintf(disp_buf, "Root:%s Fold:%02d", osc[0].getNoteName(), osc[0].getFolding());
     }
     else
     {
-        sprintf(disp_buf, "%s", osc[oscIndex].getNoteNameOrFreq(rangeMode));
+        sprintf(disp_buf, "%s", osc[0].getNoteName());
     }
     u8g2.drawStr(0, 48, disp_buf);
     u8g2.setFont(u8g2_font_logisoso26_tf);
-    sprintf(disp_buf, "%s", osc[oscIndex].getWaveName());
+    sprintf(disp_buf, "%s", osc[0].getWaveName());
     u8g2.drawStr(0, 16, disp_buf);
 
     if (encMode == 0)
@@ -217,7 +198,7 @@ void dispOLED()
     switch (menuIndex)
     {
     case 0:
-        drawOSC(0, 0);
+        drawOSC();
         break;
     default:
         menuControl.draw(&u8g2, encMode);
@@ -293,14 +274,12 @@ void setup()
     initEEPROM();
     loadUserConfig(&userConfig);
 
-    max_coarse_freq = (float)VCO_MAX_COARSE_FREQ;
-
     for (int i = 0; i < 4; ++i)
     {
         osc[i].init(SAMPLE_FREQ);
         osc[i].setWave((Oscillator::Wave)userConfig.oscAWave);
-        osc[i].setFrequency(userConfig.oscACoarse);
-        osc[i].setFreqName(userConfig.oscACoarse);
+        osc[i].setFrequencyFromNoteNameIndex(userConfig.oscACoarseIndex);
+        osc[i].setCourceFromNoteNameIndex(userConfig.oscACoarseIndex);
         osc[i].addPhaseShift(userConfig.oscAPhaseShift);
         osc[i].addFolding(userConfig.oscAFolding);
     }
@@ -343,8 +322,7 @@ void loop()
 
     static uint8_t rootIndex = 0;
     static uint8_t rootConfirmCount = 0;
-    uint8_t courceIndex = osc[0].getNoteNameIndexFromFreq(userConfig.oscACoarse);
-    float freq = userConfig.oscACoarse * powVOct;
+    float freq = osc[0].getCource() * powVOct;
     uint8_t rootTemp = osc[0].getNoteNameIndexFromFreq(freq);
 
     if (rootTemp != rootIndex)
@@ -362,7 +340,7 @@ void loop()
         rootConfirmCount = 0;
     }
 
-    uint8_t rootDiff = (rootIndex - courceIndex) % 12;
+    uint8_t rootDiff = (rootIndex - userConfig.oscACoarseIndex) % 12;
     uint8_t scaleIndex = rootScaleIndexFromSemitone[userConfig.scale][rootDiff];
     int8_t rootMinus = userConfig.rootMinus * -12;
     int8_t seventhMinus = userConfig.seventhMinus * 12;
@@ -406,29 +384,19 @@ void loop()
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }
 
-    // max_coarse_freq = (float)VCO_MAX_COARSE_FREQ;
-
     // static uint8_t dispCount = 0;
     // dispCount++;
     // if (dispCount == 0)
     // {
-    //     // Serial.print(voct);
-    //     // Serial.print(", ");
-    //     // Serial.print(cv1Value);
-    //     // Serial.print(", ");
-    //     // Serial.print(cv2Value);
-    //     // Serial.print(", ");
-    //     // // Serial.print(digitalRead(GATE));
-    //     // // Serial.print(userConfig.voctTune);
-    //     // // Serial.print(", ");
-    //     // Serial.print(coarseA);
-    //     // Serial.print(", ");
-    //     // Serial.print(freqencyA);
-    //     // Serial.print(", ");
-    //     // Serial.print(coarseB);
-    //     // Serial.print(", ");
-    //     // Serial.print(freqencyB);
-    //     Serial.print(peak);
+    //     Serial.print(userConfig.oscACoarseIndex);
+    //     Serial.print(", ");
+    //     Serial.print(rootIndex);
+    //     Serial.print(", ");
+    //     Serial.print(rootTemp);
+    //     Serial.print(", ");
+    //     Serial.print(rootConfirmCount);
+    //     Serial.print(", ");
+    //     Serial.print(freq);
     //     Serial.print(", ");
     //     Serial.println();
     // }
@@ -478,11 +446,6 @@ void loop1()
                 menuIndex--;
                 requiresUpdate = true;
             }
-            // if (menuControl.isOver())
-            // {
-            //     menuIndex = 0;
-            //     requiresUpdate = true;
-            // }
         }
         else
         {
@@ -520,7 +483,7 @@ void loop1()
     case 0:
         if (unlock)
         {
-            userConfig.oscACoarse = EXP_CURVE((float)potValue, 2.0) * max_coarse_freq;
+            userConfig.oscACoarseIndex = map(potValue, 0, ADC_RESO - 1, 0, VCO_MAX_ROOT_INDEX);
         }
         for (int i = 0; i < 4; ++i)
         {
@@ -528,10 +491,9 @@ void loop1()
             if (btn0 != 3)
             {
                 // OLED描画更新でノイズが乗るので必要時以外更新しない
-                requiresUpdate |= osc[i].setNoteNameFromFrequency(userConfig.oscACoarse);
+                requiresUpdate |= osc[i].setCourceFromNoteNameIndex(userConfig.oscACoarseIndex);
                 requiresUpdate |= osc[i].setWave((Oscillator::Wave)
                                                      constrainCyclic((int)osc[i].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
-                requiresUpdate |= osc[i].setFreqName(userConfig.oscACoarse);
 
                 userConfig.oscAWave = osc[i].getWave();
             }

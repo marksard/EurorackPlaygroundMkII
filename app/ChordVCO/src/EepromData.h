@@ -25,7 +25,7 @@ struct UserConfig
     char ver[15];
     int16_t voctTune;
     int16_t oscAWave;
-    int16_t oscACoarse;
+    int16_t oscACoarseIndex;
     int16_t oscAPhaseShift;
     int16_t oscAFolding;
     int16_t oscAParaCV;
@@ -49,7 +49,7 @@ void initUserConfig(UserConfig *pUserConfig)
     strcpy(pUserConfig->ver, UI_VER);
     pUserConfig->voctTune = 0;
     pUserConfig->oscAWave = 0;
-    pUserConfig->oscACoarse = 32;
+    pUserConfig->oscACoarseIndex = 32;
     pUserConfig->oscAPhaseShift = 5;
     pUserConfig->oscAFolding = 0;
     pUserConfig->oscAParaCV = 0;

@@ -231,6 +231,7 @@ void interruptPWM()
         levelR += level >> panR;
     }
     agc.setCurrentLevel(levelL, levelR);
+    agc.update(1);
 
     levelL = agc.getProcessedLevel(levelL);
     levelR = agc.getProcessedLevel(levelR);
@@ -306,8 +307,6 @@ void loop()
     bool cv2Value = cv2.isEdgeHigh();
 
     bool trig = clockEdge.isEdgeHigh();
-
-    agc.update(4);
 
     if (trig)
     {

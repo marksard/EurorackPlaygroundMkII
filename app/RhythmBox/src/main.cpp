@@ -14,6 +14,7 @@
 #include "../../commonlib/common/EdgeChecker.hpp"
 #include "../../commonlib/common/TriggerOut.hpp"
 #include "../../commonlib/common/PollingTimeEvent.hpp"
+#include "../../commonlib/common/ActiveGainControl.hpp"
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
 #include "../../commonlib/common/pwm_wrapper.h"
@@ -162,6 +163,7 @@ static bool clockAlive = false;
 static int16_t clockCount = 0;
 // 1小節4打の16ステップを4つ=16小節
 static int16_t resetCount = STEP_TOTAL;
+static ActiveGainControl agc;
 
 void initOLED()
 {
@@ -216,7 +218,6 @@ void dispOLED()
 void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
-    // gpio_put(LED1, HIGH);
 
     int16_t levelL = 0;
     int16_t levelR = 0;
@@ -229,12 +230,13 @@ void interruptPWM()
         levelL += level >> panL;
         levelR += level >> panR;
     }
-    levelL = levelL >> 1;
-    levelR = levelR >> 1;
-    pwm_set_gpio_level(OUT1, levelL + 1024);
-    pwm_set_gpio_level(OUT2, levelR + 1024);
+    agc.setCurrentLevel(levelL, levelR);
 
-    // gpio_put(LED1, LOW);
+    levelL = agc.getProcessedLevel(levelL);
+    levelR = agc.getProcessedLevel(levelR);
+
+    pwm_set_gpio_level(OUT1, levelL);
+    pwm_set_gpio_level(OUT2, levelR);
 }
 
 void setup()
@@ -257,6 +259,8 @@ void setup()
     cv1.init(CV1);
     cv2.init(CV2);
     clockEdge.init(GATE);
+    // gain最大値の設定は全部同時に鳴ることはほぼないため大きめにしている
+    agc.init(PWM_RESO, SEQUENCER_TOTAL, 0.97);
 
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
@@ -302,6 +306,8 @@ void loop()
     bool cv2Value = cv2.isEdgeHigh();
 
     bool trig = clockEdge.isEdgeHigh();
+
+    agc.update(4);
 
     if (trig)
     {
@@ -370,14 +376,15 @@ void loop()
     // dispCount++;
     // if (dispCount == 0)
     // {
-    // Serial.print(voct);
-    // Serial.print(", ");
-    // Serial.print(cv1Value);
-    // Serial.print(", ");
-    // Serial.print(cv2Value);
-    // Serial.print(", ");
-    // Serial.print(gateValue);
-    // Serial.println();
+    //     // Serial.print(voct);
+    //     // Serial.print(", ");
+    //     // Serial.print(cv1Value);
+    //     // Serial.print(", ");
+    //     // Serial.print(cv2Value);
+    //     // Serial.print(", ");
+    //     // Serial.print(gateValue);
+    //     // Serial.println();
+    //     // agc.print();
     // }
 
     sleep_us(100);

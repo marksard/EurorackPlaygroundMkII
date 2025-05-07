@@ -13,6 +13,7 @@
 #include "../../commonlib/common/RotaryEncoder.hpp"
 #include "../../commonlib/common/EdgeChecker.hpp"
 #include "../../commonlib/common/PollingTimeEvent.hpp"
+#include "../../commonlib/common/ActiveGainControl.hpp"
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
 #include "../../commonlib/common/pwm_wrapper.h"
@@ -52,15 +53,17 @@ static bool saveConfirm = false;
 // triple vco
 #define VCO_MAX_ROOT_INDEX 96 // noteNameのC7
 #define EXP_CURVE(value, ratio) (exp((value * (ratio / (ADC_RESO - 1)))) - 1) / (exp(ratio) - 1)
-static Oscillator osc[4];
+#define OSCILLATOR_MAX 4
+static Oscillator osc[OSCILLATOR_MAX];
 static int8_t arpStep = 0;
 static Quantizer quantizer(PWM_RESO);
-static int16_t bias = (PWM_RESO / 2) - 1;
-static int16_t peak = 1023 * 4; // 4和音分のピーク値を初期値に
+static ActiveGainControl agc;
+static uint16_t bias = PWM_RESO >> 1;
 
-static uint8_t addRootScale[][7][4] =
+// コードを構成する音の12音階上での位置
+static uint8_t addRootScale[][7][OSCILLATOR_MAX] =
 {
-    // minor
+    // natulal minor chord
     {
         {0, 3, 7, 10}, // Im7
         {0, 3, 6, 10}, // IIdim
@@ -70,7 +73,7 @@ static uint8_t addRootScale[][7][4] =
         {0, 4, 7, 11}, // VIM7
         {0, 4, 7, 10}, // VII7
     },
-    // major
+    // major chord
     {
         {0, 4, 7, 11}, // IM7
         {0, 3, 7, 10}, // IIm7
@@ -82,10 +85,13 @@ static uint8_t addRootScale[][7][4] =
     }
 };
 
+// ルート起点としてノートの位置による構成コード（addRootScale）の指定
+// ※キーからはずれたノートはとりあえず0にしている
 static uint8_t rootScaleIndexFromSemitone[][12] =
 {
-    // minor
+    // natulal minor chord
     {0, 0, 1, 2, 0, 3, 0, 4, 5, 0, 6, 0},
+    // major chord
     {0, 0, 1, 0, 2, 3, 0, 4, 0, 5, 0, 6}
 };
 
@@ -227,25 +233,15 @@ void interruptPWM()
     // gpio_put(LED1, HIGH);
 
     int16_t sum = 0;
-    int16_t values[4] = {0};
-    for (int i = 0; i < 4; ++i)
+    int16_t values[OSCILLATOR_MAX] = {0};
+    for (int i = 0; i < OSCILLATOR_MAX; ++i)
     {
         values[i] = osc[i].getWaveValue();
         sum += values[i] - bias;
     }
 
-    int16_t absSum = abs(sum);
-    peak = (absSum > peak) ? absSum : peak - 1; // 徐々に減衰させる
-
-    // 4和音平均のための4割るのを避けつつAGC処理させる
-    // 逆数計算としたときの浮動小数も避けるために、1024を256倍している
-    // 262144 = 1024 << 8
-    // 90 = 0.35 * 256… 0.35倍を最大ゲインにするため256倍した90としている
-    int32_t gain = min(262144 / peak, 90);
-    int16_t mixValue = ((sum * gain) >> 8); // gainは256倍しているので、右シフト8bitで割る
-    int16_t chordValue = constrain(mixValue + bias, 0, PWM_RESO - 1);
-
-    pwm_set_gpio_level(OUT1, chordValue);
+    agc.setCurrentLevel(sum);
+    pwm_set_gpio_level(OUT1, agc.getProcessedLevel(sum));
     pwm_set_gpio_level(OUT2, values[arpStep]);
     pwm_set_gpio_level(OUT6, osc[0].getRandom16(PWM_RESO));
     // gpio_put(LED1, LOW);
@@ -270,11 +266,12 @@ void setup()
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);
+    agc.init(PWM_RESO, OSCILLATOR_MAX, 0.35);
 
     initEEPROM();
     loadUserConfig(&userConfig);
 
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < OSCILLATOR_MAX; ++i)
     {
         osc[i].init(SAMPLE_FREQ);
         osc[i].setWave((Oscillator::Wave)userConfig.oscAWave);
@@ -282,6 +279,7 @@ void setup()
         osc[i].setCourceFromNoteNameIndex(userConfig.oscACoarseIndex);
         osc[i].addPhaseShift(userConfig.oscAPhaseShift);
         osc[i].addFolding(userConfig.oscAFolding);
+        osc[i].startFolding(true);
     }
 
     initPWM(OUT1, PWM_RESO, false);
@@ -301,12 +299,6 @@ void setup()
     pwm_set_mask_enabled(slice);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
-
-    // delay(500);
-    osc[0].startFolding(true);
-    osc[1].startFolding(true);
-    osc[2].startFolding(true);
-    osc[3].startFolding(true);
 }
 
 void loop()
@@ -317,21 +309,23 @@ void loop()
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
 
+    agc.update(3);
+
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
     float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
 
     static uint8_t rootIndex = 0;
     static uint8_t rootConfirmCount = 0;
     float freq = osc[0].getCource() * powVOct;
-    uint8_t rootTemp = osc[0].getNoteNameIndexFromFreq(freq);
+    uint8_t lastRootIndex = osc[0].getNoteNameIndexFromFreq(freq);
 
-    if (rootTemp != rootIndex)
+    if (lastRootIndex != rootIndex)
     {
         rootConfirmCount++;
         if (rootConfirmCount == 2)
         {
             arpStep = 0;
-            rootIndex = rootTemp;
+            rootIndex = lastRootIndex;
             rootConfirmCount = 0;
         }
     }
@@ -392,7 +386,7 @@ void loop()
     //     Serial.print(", ");
     //     Serial.print(rootIndex);
     //     Serial.print(", ");
-    //     Serial.print(rootTemp);
+    //     Serial.print(lastRootIndex);
     //     Serial.print(", ");
     //     Serial.print(rootConfirmCount);
     //     Serial.print(", ");
@@ -428,7 +422,7 @@ void loop1()
     static uint8_t lastMenuIndex = 0;
 
     pwm_set_gpio_level(LED1, cv1Value);
-    pwm_set_gpio_level(LED2, gate.getValue());
+    pwm_set_gpio_level(LED2, gate.getValue() ? 0 : PWM_RESO - 1);
 
     // requiresUpdate |= updateMenuIndex(btn0, btn1);
     if (btn2 == 2)
@@ -485,7 +479,7 @@ void loop1()
         {
             userConfig.oscACoarseIndex = map(potValue, 0, ADC_RESO - 1, 0, VCO_MAX_ROOT_INDEX);
         }
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < OSCILLATOR_MAX; ++i)
         {
             // OLED描画更新でノイズが乗るので必要時以外更新しない
             if (btn0 != 3)

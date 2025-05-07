@@ -107,7 +107,7 @@ public:
         _phaseAccum = 0;
         _tuningWordM = 0;
         _wave = Wave::SQU;
-        _noteNameIndex = 0;
+        _coarseNoteNameIndex = 0;
         _widthHalf = WAVE_LENGTH >> 1;
         _widthM1 = WAVE_LENGTH - 1;
         _heightHalf = WAVE_HEIGHT >> 1;
@@ -138,12 +138,12 @@ public:
             value = applyPhaseShift(value, indexHeight, indexPhase);
             break;
         case Wave::MUL_TRI:
-        {
-            value = getTriangle(index, indexHeight);
-            uint16_t value2 = getTriangle(index, indexPhase);
-            value = ((value * value2) >> WAVE_HEIGHT_BIT) % WAVE_HEIGHT;
-        }
-        break;
+            {
+                value = getTriangle(index, indexHeight);
+                uint16_t value2 = getTriangle(index, indexPhase);
+                value = ((value * value2) >> WAVE_HEIGHT_BIT) % WAVE_HEIGHT;
+            }
+            break;
         case Wave::TRI:
             value = getTriangle(index, indexHeight);
             if (_isFolding)
@@ -171,8 +171,31 @@ public:
     void setFrequency(float frequency)
     {
         // チューニングワード値 = 2^N(ここでは32bitに設定) * 出力したい周波数 / クロック周波数
-        _tuningWordM = OSC_WAVE_BIT32 * ((float)frequency / _interruptClock);
+        _tuningWordM = OSC_WAVE_BIT32 * (frequency / _interruptClock);
     }
+
+    void setFrequencyFromNoteNameIndex(int8_t value)
+    {
+        if (value < 0)
+        {
+            value = 0;
+        }
+
+        setFrequency(noteFreq[value]);
+    }
+
+    bool setWave(Wave value)
+    {
+        bool result = _wave != value;
+        if (value < 0 && value > Wave::MAX)
+            return false;
+        _wave = value;
+        return result;
+    }
+
+    Wave getWave() { return _wave; }
+
+    uint16_t getRandom16(uint16_t max) { return getRandomFast() % max; }
 
     void addPhaseShift(int8_t value)
     {
@@ -204,15 +227,15 @@ public:
 
     void startFolding(int8_t value) { _isFolding = value != 0 ? true : false; }
 
-    bool setCourceFromNoteNameIndex(int8_t noteNameIndex)
+    bool setCourceFromNoteNameIndex(int8_t value)
     {
-        bool result = _noteNameIndex != noteNameIndex;
-        if (noteNameIndex < 0)
+        bool result = _coarseNoteNameIndex != value;
+        if (value < 0)
         {
-            noteNameIndex = 0;
+            value = 0;
         }
-        _noteNameIndex = noteNameIndex;
-        _coarse = noteFreq[noteNameIndex];
+        _coarseNoteNameIndex = value;
+        _coarse = noteFreq[value];
         return result;
     }
 
@@ -231,30 +254,8 @@ public:
         return 0;
     }
 
-    void setFrequencyFromNoteNameIndex(int8_t noteNameIndex)
-    {
-        if (noteNameIndex < 0)
-        {
-            noteNameIndex = 0;
-        }
-        float frequency = noteFreq[noteNameIndex];
-        setFrequency(frequency);
-    }
-
-    bool setWave(Wave value)
-    {
-        bool result = _wave != value;
-        if (value < 0 && value > Wave::MAX)
-            return false;
-        _wave = value;
-        return result;
-    }
-
-    Wave getWave() { return _wave; }
     const char *getWaveName() { return waveName[_wave]; }
-    const char *getNoteName() { return noteName[_noteNameIndex]; }
-
-    uint16_t getRandom16(uint16_t max) { return getRandomFast() % max; }
+    const char *getNoteName() { return noteName[_coarseNoteNameIndex]; }
 
 private:
     uint32_t _phaseAccum;
@@ -264,7 +265,7 @@ private:
     uint16_t _widthM1;
     uint32_t _heightHalf;
     uint32_t _heightM1;
-    uint8_t _noteNameIndex;
+    uint8_t _coarseNoteNameIndex;
     float _interruptClock;
     uint16_t _halfReso;
     LimitValue<int8_t> _phaseShift;
@@ -280,7 +281,7 @@ private:
         return index < _widthHalf ? (indexHeight << 1) : ((_heightM1 - indexHeight) << 1);
     }
 
-    uint16_t applyPhaseShift(uint16_t value, uint32_t indexHeight, uint32_t indexPhase)
+    inline uint16_t applyPhaseShift(uint16_t value, uint32_t indexHeight, uint32_t indexPhase)
     {
         // Phase shift with normalize. (Not exact, but light.)
         uint16_t sum = indexHeight + indexPhase;

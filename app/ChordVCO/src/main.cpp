@@ -161,7 +161,7 @@ void drawOSC()
     }
     else
     {
-        sprintf(disp_buf, "%s", osc[0].getNoteName());
+        sprintf(disp_buf, "Root:%s", osc[0].getNoteName());
     }
     u8g2.drawStr(0, 48, disp_buf);
     u8g2.setFont(u8g2_font_logisoso26_tf);
@@ -421,8 +421,8 @@ void loop1()
     static uint8_t unlock = 0;
     static uint8_t lastMenuIndex = 0;
 
-    pwm_set_gpio_level(LED1, cv1Value);
-    pwm_set_gpio_level(LED2, gate.getValue() ? 0 : PWM_RESO - 1);
+    // pwm_set_gpio_level(LED1, cv1Value);
+    // pwm_set_gpio_level(LED2, gate.getValue() ? 0 : PWM_RESO - 1);
 
     // requiresUpdate |= updateMenuIndex(btn0, btn1);
     if (btn2 == 2)

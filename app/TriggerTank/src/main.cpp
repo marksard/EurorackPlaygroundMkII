@@ -349,6 +349,7 @@ void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encV
     // A
     if (btn0 == 2)
     {
+        srInternalData.resetCurrent();
     }
     // B
     if (btn1 == 2)
@@ -464,6 +465,10 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     // A
     if (btn0 == 2)
     {
+        for (int i = 0; i < OUT_COUNT; ++i)
+        {
+            euclid[i].resetCurrent();
+        }    
     }
     // B
     if (btn1 == 2)
@@ -583,6 +588,11 @@ void edgeCallback(uint gpio, uint32_t events)
         if (events & GPIO_IRQ_EDGE_RISE)
         {
             clockCount = 0;
+            srInternalData.resetCurrent();
+            for (int i = 0; i < OUT_COUNT; ++i)
+            {
+                euclid[i].resetCurrent();
+            }    
         }
     }
     else if (gpio == CV1)

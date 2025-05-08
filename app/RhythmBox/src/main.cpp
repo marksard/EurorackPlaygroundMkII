@@ -480,13 +480,9 @@ void loop1()
     {
         int8_t mute = mutes[i];
         if (mute == -1)continue;
+        if (mute == 4 && isSDFill)continue;
         if (i <= muteIndex)
         {
-            if (mute == 4 && isSDFill)
-            {
-                continue;
-            }
-
             pKit[mute]->setMute(true);
         }
         else

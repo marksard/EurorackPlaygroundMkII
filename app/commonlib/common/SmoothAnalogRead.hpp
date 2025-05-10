@@ -45,7 +45,7 @@ public:
     uint16_t analogReadDropLow4bit()
     {
         _valueOld = _value;
-        uint16_t value = readPin();
+        uint16_t value = readPinFast();
         _value = map((((value + _value) >> 1) & 0xFFF0), 0, 4080, 0, 4095);
         // _value = ((value + _value + 2) >> 1) & 0xFFF0;
         return _value;

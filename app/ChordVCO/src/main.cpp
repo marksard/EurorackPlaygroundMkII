@@ -305,7 +305,7 @@ void loop()
 {
     uint16_t potValue = pot.analogRead(true, true);
     int8_t encValue = enc.getDirection();
-    uint16_t voct = vOct.analogReadDirectFast();
+    uint16_t voct = vOct.analogRead(false, true);
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
 
@@ -322,11 +322,17 @@ void loop()
     if (lastRootIndex != rootIndex)
     {
         rootConfirmCount++;
-        if (rootConfirmCount == 2)
+        if (rootConfirmCount >= 10)
         {
             arpStep = 0;
             rootIndex = lastRootIndex;
             rootConfirmCount = 0;
+            // Serial.print("rootIndex: ");
+            // Serial.print(rootIndex);
+            // Serial.print(", ");
+            // Serial.print("lastRootIndex: ");
+            // Serial.print(lastRootIndex);
+            // Serial.println();
         }
     }
     else

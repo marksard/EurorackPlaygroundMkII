@@ -41,13 +41,14 @@ static SmoothAnalogRead cv2;
 static BlinkLED led1;
 static BlinkLED led2;
 
-// TriggerTank common
+// common
 #define OUT_COUNT 5
 static uint8_t outPins[OUT_COUNT] = {OUT1, OUT2, OUT3, OUT4, OUT5};
 static uint8_t mainMode = 0;
 static EdgeChecker clockEdge;
-static int16_t clockCount = 0;
-static int16_t resetCount = 64;
+static uint64_t clockCount = 0;
+static uint64_t resetCount = 64;
+// static uint64_t resetCount = 144403552893600; // 1-32の最小公倍数
 
 static TriggerOut triggerOuts[OUT_COUNT];
 // トリガーパルス幅（%）、100は通常のゲート出力とする
@@ -176,7 +177,7 @@ void setLevelIndicationDoubleLED(uint8_t level, uint8_t max, int8_t freq)
 
 uint8_t updateMainMode(int8_t encValue)
 {
-    mainMode = constrainCyclic(mainMode + encValue, 0, 2);
+    mainMode = constrainCyclic(mainMode + encValue, 0, 3);
 
     setLED(1, (((mainMode + 1) >> 1) & 0x01) ? 1 : 0, 1, 10);
     setLED(2, ((mainMode + 1) & 0x01) ? 1 : 0, 1, 10);
@@ -235,7 +236,6 @@ void updateClockDividerProcedure()
     if (clockEdgeLatch)
     {
         updateSequenceProcedure();
-
         clockEdgeLatch = false;
     }
 }
@@ -246,6 +246,12 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     if (btn0 == 2)
     {
         clockCount = resetCount - 1; // スタートポジションを合わせる
+        stepSeqModel.keyStep.setMode(Step::Mode::Reverse);
+        stepSeqModel.keyStep.resetPlayStep();
+        stepSeqModel.keyStep.setMode(Step::Mode::Forward);
+        stepSeqModel.gateStep.setMode(Step::Mode::Reverse);
+        stepSeqModel.gateStep.resetPlayStep();
+        stepSeqModel.gateStep.setMode(Step::Mode::Forward);
     }
     // B
     else if (btn1 == 2)
@@ -285,8 +291,8 @@ void updateClockDividerUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encVa
     {
         stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
                                           stepSeqModel.keyStep.pos.getMax() + encValue);
-        setLED(1, clockCount, resetCount, 100);
-        setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
+        // setLED(1, clockCount, resetCount, 100);
+        setLED(2, stepSeqModel.keyStep.pos.get() <= (stepSeqModel.keyStep.pos.getMax() >> 1), 1, 100);
     }
 }
 
@@ -511,8 +517,8 @@ void updateEuclideanUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue
     {
         stepSeqModel.keyStep.pos.setLimit(stepSeqModel.keyStep.pos.getMin(),
                                           stepSeqModel.keyStep.pos.getMax() + encValue);
-        setLED(1, euclid[0].getCurrent(), Euclidean::EUCLID_MAX_STEPS, 100);
-        setLED(2, stepSeqModel.keyStep.pos.get(), stepSeqModel.keyStep.pos.getMax(), 100);
+        setLED(1, euclid[0].getCurrent() < (euclid[0].getStepSize() >> 1), 1, 100);
+        setLED(2, stepSeqModel.keyStep.pos.get() <= (stepSeqModel.keyStep.pos.getMax() >> 1), 1, 100);
     }
 }
 
@@ -521,27 +527,10 @@ void initDefault()
     initTriggerOuts();
 }
 
+static uint16_t testToneVOct = 0;
 void defaultProcedure()
 {
-    if (clockEdgeLatch)
-    {
-        clockEdgeLatch = false;
-        triggerOuts[0].set(1);
-    }
-    else
-    {
-        triggerOuts[0].set(0);
-    }
-
-    if (dataEdgeLatch)
-    {
-        dataEdgeLatch = false;
-        triggerOuts[1].set(1);
-    }
-    else
-    {
-        triggerOuts[1].set(0);
-    }
+    pwm_set_gpio_level(OUT6, testToneVOct * quantizer.VoltPerTone);
 }
 
 void defaultUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
@@ -549,6 +538,12 @@ void defaultUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
     if (btn2 == 2)
     {
         updateMainMode(1);
+    }
+    // Enc only
+    else if (btn0 == 0 && btn1 == 0 && btn2 == 0)
+    {
+        testToneVOct = constrain(testToneVOct + encValue, 0, 60);
+        setLED(1, (testToneVOct % 12) == 0 ? 1 : 0, 1, 100);        
     }
 }
 

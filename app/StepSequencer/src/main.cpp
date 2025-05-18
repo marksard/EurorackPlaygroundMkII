@@ -74,8 +74,8 @@ static const char euclidSyncDivs[] = {1, 2, 3, 4, 8, 16};
 SettingItem16 commonSettings[] =
 {
     SettingItem16(0, 1, 1, &userConfig.seqSyncMode, "SYNC MODE: %s", seqSyncModes, 2),
-    SettingItem16(0, 256, 1, &userConfig.bpm, "BPM: %d", NULL, 0),
-    SettingItem16(0, 10, 1, &userConfig.scale, "SCALE: %s", scaleNames, 10),
+    SettingItem16(0, 255, 1, &userConfig.bpm, "BPM: %d", NULL, 0),
+    SettingItem16(0, 9, 1, &userConfig.scale, "SCALE: %s", scaleNames, 10),
     SettingItem16(0, 3, 1, &userConfig.swing, "SWING: %d", NULL, 0),
 };
 
@@ -83,9 +83,9 @@ SettingItem16 sequenceSettings[] =
 {
     SettingItem16(-1, 4, 1, &userConfig.octUnder, "OCT UNDER: %d", NULL, 0),
     SettingItem16(-1, 4, 1, &userConfig.octUpper, "OCT UPPER: %d", NULL, 0),
-    SettingItem16(0, StepSeqModel::Gate::Max, 1, &userConfig.gateMin, "GATE MIN: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
-    SettingItem16(1, StepSeqModel::Gate::Max, 1, &userConfig.gateMax, "GATE MAX: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
-    SettingItem16(0, StepSeqModel::Gate::Max, 1, &userConfig.gateInitial, "GATE INI: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
+    SettingItem16(0, StepSeqModel::Gate::Max -1, 1, &userConfig.gateMin, "GATE MIN: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
+    SettingItem16(1, StepSeqModel::Gate::Max -1, 1, &userConfig.gateMax, "GATE MAX: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
+    SettingItem16(0, StepSeqModel::Gate::Max -1, 1, &userConfig.gateInitial, "GATE INI: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
 };
 
 SettingItem16 euclidSettings[] =

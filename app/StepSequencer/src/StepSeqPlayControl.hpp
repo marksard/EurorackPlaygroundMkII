@@ -310,7 +310,7 @@ public:
         if (updateDuration)
         {
             int length = getStepDulation();
-            int duration = _ssm.getGateDulation();
+            int duration = _ssm.getGateDuration();
             // Serial.print(duration);
             // Serial.print(",");
             // Serial.print(length);

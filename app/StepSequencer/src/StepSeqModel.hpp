@@ -26,17 +26,19 @@ void initArray(vs *pArray, vs size)
         pArray[i] = 0;
 }
 
-// template <typename vs = uint8_t>
-// void printArray(vs *pArray, vs size)
-// {
-//     for (vs i = 0; i < size; ++i)
-//     {
-//         Serial.print(pArray[i]);
-//         Serial.print(",");
-//     }
+template <typename vs = uint8_t>
+void printArray(const char* lavel, vs *pArray, vs size)
+{
+    Serial.print(lavel);
 
-//     Serial.println("");
-// }
+    for (vs i = 0; i < size; ++i)
+    {
+        Serial.print(pArray[i]);
+        Serial.print(",");
+    }
+
+    Serial.println("");
+}
 
 template <typename vs = int8_t>
 class LimitValue
@@ -196,7 +198,7 @@ public:
     
     static constexpr const char GateDisp[Gate::Max][5] = {"-", "S", "H", "L", "G"};
 
-    const uint8_t GateDulation[Gate::Max] = {0, 25, 50, 75, 100};
+    const uint8_t GateDuration[Gate::Max] = {0, 25, 50, 75, 100};
 
     enum SeqMove
     {
@@ -234,7 +236,7 @@ public:
     uint8_t getPlayNote() { return (constrain(getPlayOctave() + octaveAdder.get(), 0, 5) * 12) + Scales[_scaleIndex.get()][getPlayKey()]; }
     uint8_t getScaleKey(uint8_t scale, uint8_t key) { return Scales[scale][key]; }
 
-    uint8_t getGateDulation() { return GateDulation[getPlayGate()]; }
+    uint8_t getGateDuration() { return GateDuration[getPlayGate()]; }
 
     void randomSeed(ulong seed) { _rand.randomSeed(seed); }
     int16_t rand(int16_t max) { return _rand.getRandom16(0, max); }
@@ -282,13 +284,17 @@ public:
         }
     }
 
-    void generateSequence(int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial)
+    void generateSequence(int8_t octUnder, int8_t octUpper, int8_t gateMin, int8_t gateMax, int8_t gateInitial, bool leaveVibes = true)
     {
         // Serial.println("generateSequence");
         // Serial.print("octUnder: ");
         // Serial.println(octUnder);
         // Serial.print("octUpper: ");
         // Serial.println(octUpper);
+        // Serial.print("gateMin: ");
+        // Serial.println(gateMin);
+        // Serial.print("gateMax: ");
+        // Serial.println(gateMax);
         this->randomSeed(micros());
         byte geteSelect = this->rand(MAX_GATE_TIMINGS);
     
@@ -296,12 +302,12 @@ public:
         {
             // タイミングマップにランダムでタイミングをorして足す
             StepSeqModel::Gate gate = GateMap[geteSelect][i] == 1 ? 
-                (StepSeqModel::Gate)this->rand(gateMin, gateMax) : 
+                (StepSeqModel::Gate)this->rand(gateMin, gateMax + 1) : 
                 (StepSeqModel::Gate)(this->rand(2) ? getGate(i) : gateInitial);
             setGate(i, gate);
     
             // 変更前のメロディーラインをランダムに残して繋がりを持たせる
-            if (this->rand(2))
+            if (leaveVibes && this->rand(2))
             {
                 continue;
             }
@@ -327,43 +333,44 @@ public:
          }
     }
     
-    // void printSeq()
-    // {
-    //     printArray(_keys, MAX_STEP);
-    //     printArray(_octaves, MAX_STEP);
-    //     printArray(_accs, MAX_STEP);
-    //     printArray((uint8_t *)_gates, MAX_STEP);
-    //     for (byte i = 0; i < StepSeqModel::MAX_STEP * 3; ++i)
-    //     {
-    //         Serial.print("i:");
-    //         Serial.print(i);
-    //         Serial.print(", ");
-    //         Serial.print("Key Step:");
-    //         Serial.print(keyStep.pos.get());
-    //         Serial.print(", ");
-    //         Serial.print("Gate Step:");
-    //         Serial.print(gateStep.pos.get());
-    //         Serial.print(", ");
-    //         Serial.print("Key:");
-    //         Serial.print(getPlayKey());
-    //         Serial.print(", ");
-    //         Serial.print("Octave:");
-    //         Serial.print(getPlayOctave());
-    //         Serial.print(", ");
-    //         Serial.print("Gate:");
-    //         Serial.print(getPlayGate());
-    //         Serial.print(", ");
-    //         Serial.print("Note:");
-    //         Serial.print(getPlayNote());
-    //         Serial.print(", ");
-    //         Serial.print("Acc:");
-    //         Serial.print(getPlayAcc());
-    //         Serial.print(", ");
-    //         Serial.println();
-    //         keyStep.nextPlayStep();
-    //         gateStep.nextPlayStep();
-    //     }
-    // }
+    void printSeq()
+    {
+        Serial.println("--------");
+        printArray("key: ", _keys, MAX_STEP);
+        printArray("oct: ", _octaves, MAX_STEP);
+        printArray("acc: ", _accs, MAX_STEP);
+        printArray("gate:", (uint8_t *)_gates, MAX_STEP);
+        // for (byte i = 0; i < StepSeqModel::MAX_STEP * 3; ++i)
+        // {
+        //     Serial.print("i:");
+        //     Serial.print(i);
+        //     Serial.print(", ");
+        //     Serial.print("Key Step:");
+        //     Serial.print(keyStep.pos.get());
+        //     Serial.print(", ");
+        //     Serial.print("Gate Step:");
+        //     Serial.print(gateStep.pos.get());
+        //     Serial.print(", ");
+        //     Serial.print("Key:");
+        //     Serial.print(getPlayKey());
+        //     Serial.print(", ");
+        //     Serial.print("Octave:");
+        //     Serial.print(getPlayOctave());
+        //     Serial.print(", ");
+        //     Serial.print("Gate:");
+        //     Serial.print(getPlayGate());
+        //     Serial.print(", ");
+        //     Serial.print("Note:");
+        //     Serial.print(getPlayNote());
+        //     Serial.print(", ");
+        //     Serial.print("Acc:");
+        //     Serial.print(getPlayAcc());
+        //     Serial.print(", ");
+        //     Serial.println();
+        //     keyStep.nextPlayStep();
+        //     gateStep.nextPlayStep();
+        // }
+    }
 
 public:
     // スケール

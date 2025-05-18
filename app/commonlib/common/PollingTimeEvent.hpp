@@ -39,7 +39,7 @@ public:
         if (!_start)
             return false;
 
-        long now = micros();
+        ulong now = micros();
         if ((now - _lastMicros) >= triggerTime)
         {
             // Serial.print(now - _lastMicros);
@@ -90,5 +90,5 @@ private:
     byte _bpm;
     byte _bpmReso;
     long triggerTime;
-    long _lastMicros;
+    ulong _lastMicros;
 };

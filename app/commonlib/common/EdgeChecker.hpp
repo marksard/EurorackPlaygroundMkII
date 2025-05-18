@@ -40,6 +40,10 @@ public:
     //     gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_LEVEL_HIGH | GPIO_IRQ_EDGE_FALL, true, callback);
     // }
 
+    /// @brief エッジ状態更新
+    /// @param value エッジ検出値
+    /// @return エッジ判定（立ち上がりON）
+    /// readPinを使わず割り込みなどで更新する
     inline bool updateEdge(uint8_t value)
     {
         bool edge = 0;
@@ -89,7 +93,8 @@ public:
 
     inline bool isAlive()
     {
-        return micros() < (_lastMicros + _aliveTimeMicros);
+        // return micros() < (_lastMicros + _aliveTimeMicros);
+        return (micros() - _lastMicros) < _aliveTimeMicros;
     }
 
 protected:

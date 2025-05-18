@@ -45,3 +45,11 @@ void initPWM(uint gpio, uint16_t resolution, bool start = true, bool apol = fals
     // pwm_set_clkdiv(slice, 1);
     // pwm_set_enabled(slice, start);
 }
+
+void disablePWM(uint gpio)
+{
+    uint slice = pwm_gpio_to_slice_num(gpio);
+    pwm_set_enabled(slice, false);
+    pwm_clear_irq(slice);
+    pwm_set_irq_enabled(slice, false);
+}

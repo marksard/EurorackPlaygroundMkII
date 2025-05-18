@@ -64,6 +64,7 @@ public:
     uint8_t getCurrent() { return max(0, _currentStep); }
     uint8_t getOnsets() { return _onsets; }
     uint8_t getStepSize() { return _stepSize; }
+    bool getCurrentOnset() { return _steps[_currentStep]; }
     const uint16_t *getSteps() { return _steps; }
 
     void setStartPos(int8_t value)
@@ -88,15 +89,25 @@ public:
     uint8_t getStartPos() { return _startPos; }
 
     // ユークリッドリズムを生成
-    bool generate(uint16_t onsets, uint16_t stepSize)
+    bool generate(int8_t onsets, int8_t stepSize)
     {
-        int8_t distanceStartPos = _stepSize - stepSize;
+        onsets = constrain(onsets, 0, EUCLID_MAX_STEPS);
+        stepSize = constrain(stepSize, 1, EUCLID_MAX_STEPS);
+
         if (_stepSize == stepSize && _onsets == onsets)
         {
             return false;
         }
+
+        if (stepSize < onsets)
+        {
+            return false;
+        }
+
+        int8_t distanceStartPos = _stepSize - stepSize;
         _onsets = onsets;
         _stepSize = stepSize;
+
         if (_startPos > 0)
             _startPos = constrainCyclic<int8_t>(_startPos - distanceStartPos, 0, (int8_t)_stepSize - 1);
         generate();
@@ -186,12 +197,17 @@ protected:
             pos++;
         }
 
-        // for (int8_t i = 0; i < _stepSize; ++i)
-        // {
-        //     Serial.print(_steps[i]);
-        //     Serial.print(",");
-        // }
-        // Serial.println();
+        Serial.print("StepSize:");
+        Serial.print(_stepSize);
+        Serial.print(" OnSets:");
+        Serial.print(_onsets);
+        Serial.print(" Map:");
+        for (int8_t i = 0; i < _stepSize; ++i)
+        {
+            Serial.print(_steps[i]);
+            Serial.print(",");
+        }
+        Serial.println();
     }
 
     // 再起でユークリディアンな組み合わせにしてく

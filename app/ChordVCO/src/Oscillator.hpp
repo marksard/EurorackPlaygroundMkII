@@ -163,7 +163,7 @@ public:
         }
 
         // simplest linear interpolation
-        value = (_lastValue + value) >> 1;
+        // value = (_lastValue + value) >> 1;
         _lastValue = value;
         return value;
     }

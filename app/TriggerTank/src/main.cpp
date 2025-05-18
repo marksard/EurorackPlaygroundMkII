@@ -350,7 +350,7 @@ void updateShiftRegisterProcedure()
     }
 }
 
-void updateshiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
+void updateShiftRegisterUI(uint8_t btn0, uint8_t btn1, uint8_t btn2, int8_t encValue)
 {
     // A
     if (btn0 == 2)
@@ -702,7 +702,7 @@ void loop1()
         updateClockDividerUI(btn0, btn1, btn2, encValue);
         break;
     case 1:
-        updateshiftRegisterUI(btn0, btn1, btn2, encValue);
+        updateShiftRegisterUI(btn0, btn1, btn2, encValue);
         break;
     case 2:
         updateEuclideanUI(btn0, btn1, btn2, encValue);

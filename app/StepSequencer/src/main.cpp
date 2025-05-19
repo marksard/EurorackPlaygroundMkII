@@ -16,6 +16,7 @@
 #include "../../commonlib/common/Euclidean.hpp"
 #include "../../commonlib/common/EdgeChecker.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
+#include "../../commonlib/common/epmkii_basicconfig.h"
 #include "../../commonlib/common/pwm_wrapper.h"
 #include "StepSeqModel.hpp"
 #include "StepSeqView.hpp"
@@ -23,14 +24,7 @@
 #include "Oscillator.hpp"
 #include "EepromData.h"
 
-#define CPU_CLOCK 133000000.0
-#define INTR_PWM_RESO 512
-// #define PWM_RESO 4096         // 12bit
 #define PWM_RESO 2048         // 11bit
-// #define PWM_RESO 1024         // 10bit
-#define DAC_MAX_MILLVOLT 5000 // mV
-#define ADC_RESO 4096
-// #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
 #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 20)
 static uint interruptSliceNum;
 
@@ -315,6 +309,7 @@ void loop()
     uint8_t oct = cv / 7;
     uint8_t semi = sspc.getScaleKey(sspc.getScale(), cv % 7);
     quantizeOut = ((oct * 12) + semi) * sspc.VoltPerTone;
+    quantizeOut = constrain(quantizeOut - PWMCVDCOutputErrorLUT[semi], 0, PWM_RESO - 1);
 
     static bool permitChange = true;
     if (userConfig.euclidOnsetsSource)

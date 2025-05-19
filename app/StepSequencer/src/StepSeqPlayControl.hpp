@@ -12,6 +12,7 @@
 #include "../../commonlib/common/PollingTimeEvent.hpp"
 #include "../../commonlib/common/SyncInTrigger.hpp"
 #include "../../commonlib/common/TriggerOut.hpp"
+#include "../../commonlib/common/epmkii_basicconfig.h"
 #include "StepSeqModel.hpp"
 #include "StepSeqView.hpp"
 
@@ -30,6 +31,7 @@ public:
 public:
     StepSeqPlayControl(U8G2 *pU8g2, uint16_t pwmReso)
         : VoltPerTone((float)(pwmReso) / 12.0 / 5.0)
+        , _pwmReso(pwmReso)
         , _ssm(), _ssv(pU8g2, 0, 16)
         , _settingPos(DEF_MAX_STEP_M1, 0, DEF_MAX_STEP_M1)
         , _octUnder(-1, 4, -1, 4)
@@ -263,7 +265,7 @@ public:
         return _ssm.octaveAdder.get();
     }
 
-    void setVOct(uint16_t value)
+    void setVOct(int16_t value)
     {
         pwm_set_gpio_level(OUT5, value);
     }
@@ -406,7 +408,9 @@ public:
             // Serial.print("--> play");
             // Serial.print(_ssm.getPlayNote());
             // Serial.println();
-            uint16_t voct = _ssm.getPlayNote() * VoltPerTone;
+            uint8_t semi = _ssm.getPlayNote();
+            int16_t voct = semi * VoltPerTone;
+            voct = constrain(voct - PWMCVDCOutputErrorLUT[semi], 0, _pwmReso - 1);
             setVOct(voct);
             updateGateOut(true);
             result = 1;
@@ -491,6 +495,7 @@ private:
     PollingTimeEvent _polling;
     SyncInTrigger _syncIn;
     CLOCK _clock;
+    uint16_t _pwmReso;
 
     uint8_t _seqReadyCount;
     uint8_t _seqReadyCountMax;

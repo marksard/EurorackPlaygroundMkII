@@ -15,15 +15,14 @@
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/EdgeChecker.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
+#include "../../commonlib/common/epmkii_basicconfig.h"
 #include "../../commonlib/common/pwm_wrapper.h"
 
-#define CPU_CLOCK 133000000.0
-#define INTR_PWM_RESO 512
 #define PWM_RESO 4096         // 12bit
-#define DAC_MAX_MILLVOLT 5000 // mV
-#define ADC_RESO 4096
 #define SAMPLE_FREQ 44100
 static uint interruptSliceNum;
+
+static const float semi2DacRatio = (PWM_RESO - 1) / 60.0;
 
 // 標準インターフェース
 static U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE);
@@ -45,6 +44,8 @@ static int16_t cv2Value = 0;
 static int16_t btn1Value = 0;
 static int16_t btn2Value = 0;
 static int16_t bias = 0;
+static int16_t outputValue = 0;
+static int16_t outputSemiSelect = 0;
 
 //////////////////////////////////////////
 
@@ -64,7 +65,9 @@ SettingItem16 settings[] =
     SettingItem16(0, 4095, 1, &gateValue, "gate: %d", NULL, 0),
     SettingItem16(0, 4095, 1, &cv1Value, "cv1: %d", NULL, 0),
     SettingItem16(0, 4095, 1, &cv2Value, "cv2: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &outputValue, "out: %d", NULL, 0),
     SettingItem16(0, 1, 1, &bias, "bias: %d", NULL, 0),
+    SettingItem16(0, 60, 1, &outputSemiSelect, "semi: %d", NULL, 0),
 };
 
 static MenuSection16 menu[] = {
@@ -96,6 +99,40 @@ void dispOLED()
     u8g2.sendBuffer();
 }
 
+void checkVOct()
+{
+    // voct誤差表示用
+    static int16_t lastVOctValue = 0;
+    static bool flag = false;
+    static int8_t count = 0;
+    static int32_t vOctMean = 0;
+    vOctValue = vOctValue - VOCTInputErrorLUT[vOctValue];
+    if (vOctValue > lastVOctValue + 30 || vOctValue < lastVOctValue - 30)
+    {
+        flag = true;
+    }
+    lastVOctValue = vOctValue;
+    if (flag)
+    {
+        vOctMean += vOctValue;
+        count++;
+        if (count >= 16)
+        {
+            vOctMean = vOctMean >> 4;
+            Serial.print(vOctMean);
+            Serial.println("");
+            flag = false;
+            count = 0;
+            vOctMean = 0;
+            // outputSemiSelect++;
+            // if (outputSemiSelect > 60)
+            // {
+            //     outputSemiSelect = 0;
+            // }
+        }
+    }
+}
+
 void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
@@ -115,7 +152,7 @@ void setup()
     analogReadResolution(12);
 
     pot.init(POT1);
-    enc.init(EC1A, EC1B);
+    enc.init(EC1A, EC1B, true);
     buttons[0].init(BTN1);
     buttons[1].init(BTN2);
     buttons[2].init(BTN3);
@@ -141,53 +178,41 @@ void setup()
 
 void loop()
 {
+    enc.getDirection();
     vOctValue = vOct.analogReadDirectFast();
     gateValue = gate.isEdgeHigh();
     cv1Value = cv1.analogReadDirectFast();
     cv2Value = cv2.analogReadDirectFast();
+    potValue = pot.analogRead(false, true);
 
-    int16_t value = bias ? 2047 : 4095;
-    pwm_set_gpio_level(OUT1, value);
-    pwm_set_gpio_level(OUT2, value);
-    pwm_set_gpio_level(OUT3, value);
-    pwm_set_gpio_level(OUT4, value);
-    pwm_set_gpio_level(OUT5, value);
-    pwm_set_gpio_level(OUT6, value);
+    outputValue = bias ? ((PWM_RESO >> 1) - 1) : constrain(((float)outputSemiSelect * semi2DacRatio), 0, PWM_RESO - 1);
+    outputValue = constrain(outputValue - PWMCVDCOutputErrorLUT[outputSemiSelect], 0, PWM_RESO - 1);
+    pwm_set_gpio_level(OUT1, outputValue);
+    pwm_set_gpio_level(OUT2, outputValue);
+    pwm_set_gpio_level(OUT3, outputValue);
+    pwm_set_gpio_level(OUT4, outputValue);
+    pwm_set_gpio_level(OUT5, outputValue);
+    pwm_set_gpio_level(OUT6, outputValue);
 
     gpio_put(LED1, gateValue ? HIGH : LOW);
-    gpio_put(LED2, vOctValue > 4094 ? HIGH : LOW);
+    gpio_put(LED2, vOctValue > PWM_RESO - 2 ? HIGH : LOW);
 
-    // static uint8_t dispCount = 0;
-    // dispCount++;
-    // if (dispCount == 0)
-    // {
-    //     Serial.print(gate.getBPM());
-    //     Serial.print(", ");
-    //     Serial.print(vOctValue);
-    //     Serial.print(", ");
-    //     Serial.print(cv2Value);
-    //     Serial.println();
-    // }
-
-    // sleep_us(50); // 20kHz
     sleep_ms(1);
 }
 
 void setup1()
 {
     initOLED();
-    updateOLED.setMills(100);
+    updateOLED.setMills(33);
     updateOLED.start();
 }
 
 void loop1()
 {
+    int8_t encValue = enc.getValue();
     btn1Value = buttons[0].getState();
     btn2Value = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
-    potValue = pot.analogRead(true, true);
-    bool acc = encMode ? true : false;
-    int8_t encValue = enc.getDirection(acc);
 
     if (btn1Value > 0 || btn2Value > 0)
     {
@@ -207,6 +232,7 @@ void loop1()
 
     requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
     requiresUpdate = 1;
+    checkVOct();
 
     if (!updateOLED.ready())
     {

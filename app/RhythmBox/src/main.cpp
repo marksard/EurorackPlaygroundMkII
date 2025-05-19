@@ -17,6 +17,7 @@
 #include "../../commonlib/common/ActiveGainControl.hpp"
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
+#include "../../commonlib/common/epmkii_basicconfig.h"
 #include "../../commonlib/common/pwm_wrapper.h"
 #include "PatternSeq.hpp"
 #include "SingleShotWave.hpp"
@@ -46,11 +47,7 @@ SingleShotWave BD(buf_808_BD_02, buf_size_808_BD_02);
 SingleShotWave<int16_t> *pKit[SEQUENCER_TOTAL];
 bool isSDFill = false;
 
-#define CPU_CLOCK 133000000.0
-#define INTR_PWM_RESO 512
 #define PWM_RESO 2048         // 11bit
-#define DAC_MAX_MILLVOLT 5000 // mV
-#define ADC_RESO 4096
 #define SAMPLE_FREQ 44100 // 再生ファイルにあわせる
 static uint interruptSliceNum;
 

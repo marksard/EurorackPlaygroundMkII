@@ -144,6 +144,7 @@ void setup()
 
 void loop()
 {
+    enc.getDirection();
     uint8_t btn0 = buttons[0].getValue();
     uint8_t btn1 = buttons[1].getValue();
     clockOut.update(clockInEdge);
@@ -191,8 +192,8 @@ void setup1()
 
 void loop1()
 {
+    int8_t encValue = enc.getValue();
     uint16_t potValue = pot.getValue();
-    int8_t encValue = enc.getDirection();
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();

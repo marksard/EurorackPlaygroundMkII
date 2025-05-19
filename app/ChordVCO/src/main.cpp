@@ -296,7 +296,7 @@ void setup()
 void loop()
 {
     uint16_t potValue = pot.analogRead(false, true);
-    int8_t encValue = enc.getDirection();
+    enc.getDirection();
     int16_t voct = vOct.analogRead(false, true);
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();

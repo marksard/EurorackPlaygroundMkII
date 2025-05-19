@@ -169,7 +169,7 @@ void setup()
 
 void loop()
 {
-    int8_t encValue = enc.getDirection();
+    enc.getDirection();
     uint16_t voct = vOct.analogReadDirect();
     int16_t cv1Value = cv1.analogReadDirect();
     uint16_t cv2Value = cv2.analogReadDirect();

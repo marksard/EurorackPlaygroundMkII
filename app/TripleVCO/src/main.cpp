@@ -14,21 +14,14 @@
 #include "../../commonlib/common/PollingTimeEvent.hpp"
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
+#include "../../commonlib/common/epmkii_basicconfig.h"
 #include "../../commonlib/common/pwm_wrapper.h"
 #include "Oscillator.hpp"
 #include "EepromData.h"
 #include "SmoothRandomCV.hpp"
 
-#define CPU_CLOCK 133000000.0
-#define INTR_PWM_RESO 512
-// #define PWM_RESO 4096         // 12bit
-#define PWM_RESO 2048         // 11bit
-// #define PWM_RESO 1024         // 10bit
-#define DAC_MAX_MILLVOLT 5000 // mV
-#define ADC_RESO 4096
-// #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4) // 64941.40625khz
-// #define SAMPLE_FREQ 88200
+#define PWM_RESO 2048 // 11bit
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -46,11 +39,10 @@ static UserConfig userConfig;
 static bool saveConfirm = false;
 
 // triple vco
-#define VCO_MAX_COARSE_FREQ 440
-#define LFO_MAX_COARSE_FREQ 66
+#define VCO_MAX_ROOT_INDEX 96 // noteNameのC7
+#define LFO_MAX_COARSE_FREQ 33
 #define EXP_CURVE(value, ratio) (exp((value * (ratio / (ADC_RESO - 1)))) - 1) / (exp(ratio) - 1)
 static Oscillator osc[3];
-static float max_coarse_freq = VCO_MAX_COARSE_FREQ;
 
 // 画面周り
 #define MENU_MAX (3 + 1)
@@ -242,8 +234,6 @@ void setup()
     initEEPROM();
     loadUserConfig(&userConfig);
 
-    max_coarse_freq = userConfig.rangeMode ? (float)LFO_MAX_COARSE_FREQ : (float)VCO_MAX_COARSE_FREQ;
-
     osc[0].init(SAMPLE_FREQ);
     osc[0].setWave((Oscillator::Wave)userConfig.oscAWave);
     osc[0].setFrequency(userConfig.oscACoarse);
@@ -292,9 +282,13 @@ void loop()
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
-    uint16_t voct = vOct.analogReadDirectFast();
+    int16_t voct = vOct.analogReadDirectFast();
     int16_t cv1Value = cv1.analogReadDirectFast();
-    uint16_t cv2Value = cv2.analogReadDirectFast();
+    int16_t cv2Value = cv2.analogReadDirectFast();
+    // ADC誤差補正
+    voct = voct - VOCTInputErrorLUT[voct] + userConfig.voctTune;
+    cv1Value = cv1Value - VOCTInputErrorLUT[cv1Value] + userConfig.voctTune;
+    cv2Value = cv2Value - VOCTInputErrorLUT[cv2Value] + userConfig.voctTune;
 
     static float coarseA = userConfig.oscACoarse;
     static float coarseB = userConfig.oscBCoarse;
@@ -304,9 +298,9 @@ void loop()
     static uint8_t lastMenuIndex = 0;
 
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
-    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
-    float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
-    float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
+    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT - 1) * 0.001);
+    float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT - 1) * 0.001);
+    float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT - 1) * 0.001);
 
     float freqencyA = max(coarseA * powVOct, 0.01);
     float selVoctB = 1;
@@ -333,10 +327,7 @@ void loop()
     userConfig.oscACoarse = coarseA;
     userConfig.oscBCoarse = coarseB;
     userConfig.oscCCoarse = coarseC;
-    pwm_set_gpio_level(LED1, cv1Value);
-    pwm_set_gpio_level(LED2, cv2Value);
 
-    // requiresUpdate |= updateMenuIndex(btn0, btn1);
     if (btn2 == 2)
     {
         encMode = (encMode + 1) & 1;
@@ -394,12 +385,20 @@ void loop()
     case 0:
         if (unlock)
         {
-            coarseA = EXP_CURVE((float)potValue, 2.0) * max_coarse_freq;
+            if (userConfig.rangeMode)
+            {
+                coarseA = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
+                requiresUpdate |= osc[0].setNoteNameFromFrequency(coarseA);
+                requiresUpdate |= osc[0].setFreqName(coarseA);
+            }
+            else
+            {
+                int16_t root = map(potValue, 0, ADC_RESO - 1, 0, VCO_MAX_ROOT_INDEX);
+                requiresUpdate |= osc[0].setCourceFromNoteNameIndex(root);
+                coarseA = osc[0].getCource();
+            }
         }
-        if (userConfig.rangeMode)
-            requiresUpdate |= osc[0].setFreqName(coarseA);
         // OLED描画更新でノイズが乗るので必要時以外更新しない
-        requiresUpdate |= osc[0].setNoteNameFromFrequency(coarseA);
         if (btn0 != 3)
         {
             requiresUpdate |= osc[0].setWave((Oscillator::Wave)
@@ -426,12 +425,20 @@ void loop()
     case 1:
         if (unlock)
         {
-            coarseB = EXP_CURVE((float)potValue, 2.0) * max_coarse_freq;
+            if (userConfig.rangeMode)
+            {
+                coarseB = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
+                requiresUpdate |= osc[1].setNoteNameFromFrequency(coarseB);
+                requiresUpdate |= osc[1].setFreqName(coarseB);
+            }
+            else
+            {
+                int16_t root = map(potValue, 0, ADC_RESO - 1, 0, VCO_MAX_ROOT_INDEX);
+                requiresUpdate |= osc[1].setCourceFromNoteNameIndex(root);
+                coarseB = osc[1].getCource();
+            }
         }
-        if (userConfig.rangeMode)
-            requiresUpdate |= osc[1].setFreqName(coarseB);
         // OLED描画更新でノイズが乗るので必要時以外更新しない
-        requiresUpdate |= osc[1].setNoteNameFromFrequency(coarseB);
         if (btn0 != 3)
         {
             requiresUpdate |= osc[1].setWave((Oscillator::Wave)
@@ -461,10 +468,8 @@ void loop()
             coarseC = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
         }
         // OLED描画更新でノイズが乗るので必要時以外更新しない
-        // requiresUpdate |= osc[2].setNoteNameFromFrequency(coarseC);
         requiresUpdate |= osc[2].setWave((Oscillator::Wave)
                                              constrainCyclic((int)osc[2].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
-        // requiresUpdate |= osc[2].setFreqName(coarseC);
         userConfig.oscCWave = osc[2].getWave();
         break;
     default:
@@ -509,14 +514,12 @@ void loop()
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }
 
-    max_coarse_freq = userConfig.rangeMode ? (float)LFO_MAX_COARSE_FREQ : (float)VCO_MAX_COARSE_FREQ;
-
     smoothRand.setCurve(userConfig.smoothncurve);
     smoothRand.setMaxFreq(userConfig.smoothMaxFreq);
     smoothRand.setMaxLevel(userConfig.smoothLevel);
     smoothRand.update(false, false);
-    float lastFreq = smoothRand.getFreq();
-    float lastLevel = smoothRand.getLevel();
+    // float lastFreq = smoothRand.getFreq();
+    int16_t lastLevel = smoothRand.getLevel();
     pwm_set_gpio_level(OUT5, lastLevel);
 
     // static uint8_t dispCount = 0;
@@ -525,12 +528,9 @@ void loop()
     // {
     //     Serial.print(voct);
     //     Serial.print(", ");
-    //     Serial.print(cv1Value);
-    //     Serial.print(", ");
-    //     Serial.print(cv2Value);
-    //     Serial.print(", ");
-    //     // Serial.print(digitalRead(GATE));
-    //     // Serial.print(userConfig.voctTune);
+    //     // Serial.print(cv1Value);
+    //     // Serial.print(", ");
+    //     // Serial.print(cv2Value);
     //     // Serial.print(", ");
     //     Serial.print(coarseA);
     //     Serial.print(", ");
@@ -540,11 +540,14 @@ void loop()
     //     Serial.print(", ");
     //     Serial.print(freqencyB);
     //     Serial.print(", ");
+    //     Serial.print(coarseC);
+    //     Serial.print(", ");
+    //     Serial.print(freqencyC);
+    //     Serial.print(", ");
     //     Serial.println();
     // }
 
     sleep_us(100); // 10kHz
-    // sleep_ms(1);
 }
 
 void setup1()

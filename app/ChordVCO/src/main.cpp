@@ -16,22 +16,14 @@
 #include "../../commonlib/common/ActiveGainControl.hpp"
 #include "../../commonlib/ui_common/SettingItem.hpp"
 #include "../../commonlib/common/epmkii_gpio.h"
+#include "../../commonlib/common/epmkii_basicconfig.h"
 #include "../../commonlib/common/pwm_wrapper.h"
 #include "../../commonlib/common/Quantizer.hpp"
 #include "Oscillator.hpp"
 #include "EepromData.h"
 #include "SmoothRandomCV.hpp"
 
-#define CPU_CLOCK 133000000.0
-#define INTR_PWM_RESO 512
-// #define PWM_RESO 4096         // 12bit
 #define PWM_RESO 2048 // 11bit
-// #define PWM_RESO 1024         // 10bit
-#define DAC_MAX_MILLVOLT 5000 // mV
-#define ADC_RESO 4096
-// #define SAMPLE_FREQ (CPU_CLOCK / INTR_PWM_RESO) // 結果的に1になる
-// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4) // 64941.40625khz
-// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 6) // 43294.27khz
 #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
 static uint interruptSliceNum;
 
@@ -50,7 +42,7 @@ static int pwmOuts[6] = {OUT1, OUT2, OUT3, OUT4, OUT5, OUT6};
 static UserConfig userConfig;
 static bool saveConfirm = false;
 
-// triple vco
+// VCO
 #define VCO_MAX_ROOT_INDEX 96 // noteNameのC7
 #define EXP_CURVE(value, ratio) (exp((value * (ratio / (ADC_RESO - 1)))) - 1) / (exp(ratio) - 1)
 #define OSCILLATOR_MAX 4
@@ -303,16 +295,18 @@ void setup()
 
 void loop()
 {
-    uint16_t potValue = pot.analogRead(true, true);
+    uint16_t potValue = pot.analogRead(false, true);
     int8_t encValue = enc.getDirection();
-    uint16_t voct = vOct.analogRead(false, true);
+    int16_t voct = vOct.analogRead(false, true);
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
 
     agc.update(3);
-
+    
+    // ADC誤差補正
+    voct = voct - VOCTInputErrorLUT[voct] + userConfig.voctTune;
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
-    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1 - userConfig.voctTune, 0, DAC_MAX_MILLVOLT - 1) * 0.001);
+    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT - 1) * 0.001);
 
     static uint8_t rootIndex = 0;
     static uint8_t rootConfirmCount = 0;
@@ -327,7 +321,9 @@ void loop()
             arpStep = 0;
             rootIndex = lastRootIndex;
             rootConfirmCount = 0;
-            // Serial.print("rootIndex: ");
+            // Serial.print("freq: ");
+            // Serial.print(freq);
+            // Serial.print(" rootIndex: ");
             // Serial.print(rootIndex);
             // Serial.print(", ");
             // Serial.print("lastRootIndex: ");
@@ -384,25 +380,7 @@ void loop()
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }
 
-    // static uint8_t dispCount = 0;
-    // dispCount++;
-    // if (dispCount == 0)
-    // {
-    //     Serial.print(userConfig.oscACoarseIndex);
-    //     Serial.print(", ");
-    //     Serial.print(rootIndex);
-    //     Serial.print(", ");
-    //     Serial.print(lastRootIndex);
-    //     Serial.print(", ");
-    //     Serial.print(rootConfirmCount);
-    //     Serial.print(", ");
-    //     Serial.print(freq);
-    //     Serial.print(", ");
-    //     Serial.println();
-    // }
-
     sleep_us(100); // 10kHz
-    // sleep_ms(1);
 }
 
 void setup1()
@@ -548,5 +526,4 @@ void loop1()
     }
 
     dispOLED();
-    // sleep_ms(1);
 }

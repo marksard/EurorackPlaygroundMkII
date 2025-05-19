@@ -176,11 +176,7 @@ public:
 
     void setFrequencyFromNoteNameIndex(int8_t value)
     {
-        if (value < 0)
-        {
-            value = 0;
-        }
-
+        value = constrain(value, 0, 127);
         setFrequency(noteFreq[value]);
     }
 
@@ -247,15 +243,52 @@ public:
         {
             if (noteFreq[i] <= frequency)
             {
-                return i;
+                return i + 1;
             }
         }
 
         return 0;
     }
 
+    bool setNoteNameFromFrequency(float frequency)
+    {
+        uint8_t noteNameIndex = 0;
+        for (int i = 127; i >= 0; --i)
+        {
+            if (noteFreq[i] <= frequency)
+            {
+                noteNameIndex = i + 1;
+                break;
+            }
+        }
+        bool result = _coarseNoteNameIndex != noteNameIndex;
+        _coarseNoteNameIndex = noteNameIndex;
+        return result;
+    }
+
+    bool setFreqName(float frequency)
+    {
+        bool result = false;
+        if (frequency > (_coarse + 0.1) || frequency < (_coarse - 0.1))
+        {
+            result = true;
+            _coarse = frequency;
+        }
+        return result;
+    }
     const char *getWaveName() { return waveName[_wave]; }
     const char *getNoteName() { return noteName[_coarseNoteNameIndex]; }
+
+    const char *getNoteNameOrFreq(bool freqName = true)
+    {
+        if (freqName)
+        {
+            sprintf(_freqName, "%5.1f", _coarse);
+            return _freqName;
+        }
+
+        return noteName[_coarseNoteNameIndex];
+    }
 
 private:
     uint32_t _phaseAccum;
@@ -270,6 +303,7 @@ private:
     uint16_t _halfReso;
     LimitValue<int8_t> _phaseShift;
     LimitValue<int16_t> _folding;
+    char _freqName[8];
     float _coarse;
     uint16_t _lastValue;
     uint32_t m_w = 1;

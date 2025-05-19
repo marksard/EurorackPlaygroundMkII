@@ -107,14 +107,14 @@ public:
         _phaseAccum = 0;
         _tuningWordM = 0;
         _wave = Wave::SQU;
-        _noteNameIndex = 0;
+        _coarseNoteNameIndex = 0;
         _widthHalf = WAVE_LENGTH >> 1;
         _widthM1 = WAVE_LENGTH - 1;
         _heightHalf = WAVE_HEIGHT >> 1;
         _heightM1 = WAVE_HEIGHT - 1;
         _interruptClock = clock;
+        _coarse = 0;
         // _halfReso = _reso >> 1;
-        _coarse = 0.0;
         _lastValue = 0;
         _isFolding = false;
     }
@@ -163,7 +163,7 @@ public:
         }
 
         // simplest linear interpolation
-        value = (_lastValue + value) >> 1;
+        // value = (_lastValue + value) >> 1;
         _lastValue = value;
         return value;
     }
@@ -171,8 +171,27 @@ public:
     void setFrequency(float frequency)
     {
         // チューニングワード値 = 2^N(ここでは32bitに設定) * 出力したい周波数 / クロック周波数
-        _tuningWordM = OSC_WAVE_BIT32 * ((float)frequency / _interruptClock);
+        _tuningWordM = OSC_WAVE_BIT32 * (frequency / _interruptClock);
     }
+
+    void setFrequencyFromNoteNameIndex(int8_t value)
+    {
+        value = constrain(value, 0, 127);
+        setFrequency(noteFreq[value]);
+    }
+
+    bool setWave(Wave value)
+    {
+        bool result = _wave != value;
+        if (value < 0 && value > Wave::MAX)
+            return false;
+        _wave = value;
+        return result;
+    }
+
+    Wave getWave() { return _wave; }
+
+    uint16_t getRandom16(uint16_t max) { return getRandomFast() % max; }
 
     void addPhaseShift(int8_t value)
     {
@@ -204,21 +223,19 @@ public:
 
     void startFolding(int8_t value) { _isFolding = value != 0 ? true : false; }
 
-    bool setNoteNameFromFrequency(float frequency)
+    bool setCourceFromNoteNameIndex(int8_t value)
     {
-        uint8_t noteNameIndex = 0;
-        for (int i = 127; i >= 0; --i)
+        bool result = _coarseNoteNameIndex != value;
+        if (value < 0)
         {
-            if (noteFreq[i] <= frequency)
-            {
-                noteNameIndex = i + 1;
-                break;
-            }
+            value = 0;
         }
-        bool result = _noteNameIndex != noteNameIndex;
-        _noteNameIndex = noteNameIndex;
+        _coarseNoteNameIndex = value;
+        _coarse = noteFreq[value];
         return result;
     }
+
+    float getCource() { return _coarse; }
 
     uint8_t getNoteNameIndexFromFreq(float frequency)
     {
@@ -233,14 +250,20 @@ public:
         return 0;
     }
 
-    void setFrequencyFromNoteNameIndex(int8_t noteNameIndex)
+    bool setNoteNameFromFrequency(float frequency)
     {
-        if (noteNameIndex < 0)
+        uint8_t noteNameIndex = 0;
+        for (int i = 127; i >= 0; --i)
         {
-            noteNameIndex = 0;
+            if (noteFreq[i] <= frequency)
+            {
+                noteNameIndex = i + 1;
+                break;
+            }
         }
-        float frequency = noteFreq[noteNameIndex];
-        setFrequency(frequency);
+        bool result = _coarseNoteNameIndex != noteNameIndex;
+        _coarseNoteNameIndex = noteNameIndex;
+        return result;
     }
 
     bool setFreqName(float frequency)
@@ -253,19 +276,8 @@ public:
         }
         return result;
     }
-
-    bool setWave(Wave value)
-    {
-        bool result = _wave != value;
-        if (value < 0 && value > Wave::MAX)
-            return false;
-        _wave = value;
-        return result;
-    }
-
-    Wave getWave() { return _wave; }
     const char *getWaveName() { return waveName[_wave]; }
-    const char *getNoteName() { return noteName[_noteNameIndex]; }
+    const char *getNoteName() { return noteName[_coarseNoteNameIndex]; }
 
     const char *getNoteNameOrFreq(bool freqName = true)
     {
@@ -275,10 +287,8 @@ public:
             return _freqName;
         }
 
-        return noteName[_noteNameIndex];
+        return noteName[_coarseNoteNameIndex];
     }
-
-    uint16_t getRandom16(uint16_t max) { return getRandomFast() % max; }
 
 private:
     uint32_t _phaseAccum;
@@ -288,7 +298,7 @@ private:
     uint16_t _widthM1;
     uint32_t _heightHalf;
     uint32_t _heightM1;
-    uint8_t _noteNameIndex;
+    uint8_t _coarseNoteNameIndex;
     float _interruptClock;
     uint16_t _halfReso;
     LimitValue<int8_t> _phaseShift;
@@ -305,7 +315,7 @@ private:
         return index < _widthHalf ? (indexHeight << 1) : ((_heightM1 - indexHeight) << 1);
     }
 
-    uint16_t applyPhaseShift(uint16_t value, uint32_t indexHeight, uint32_t indexPhase)
+    inline uint16_t applyPhaseShift(uint16_t value, uint32_t indexHeight, uint32_t indexPhase)
     {
         // Phase shift with normalize. (Not exact, but light.)
         uint16_t sum = indexHeight + indexPhase;

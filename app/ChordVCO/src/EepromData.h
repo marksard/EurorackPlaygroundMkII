@@ -19,7 +19,7 @@ void initEEPROM()
 }
 
 // 設定値系
-const static char *UI_VER = "cvco_conf_001\0";
+const static char *UI_VER = "cvco_conf_002\0";
 struct UserConfig
 {
     char ver[15];
@@ -47,7 +47,7 @@ int startSynthPatchAddress = sizeof(UserConfig);
 void initUserConfig(UserConfig *pUserConfig)
 {
     strcpy(pUserConfig->ver, UI_VER);
-    pUserConfig->voctTune = 0;
+    pUserConfig->voctTune = -33;
     pUserConfig->oscAWave = 0;
     pUserConfig->oscACoarseIndex = 32;
     pUserConfig->oscAPhaseShift = 5;

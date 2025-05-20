@@ -239,7 +239,7 @@ public:
 
     uint8_t getNoteNameIndexFromFreq(float frequency)
     {
-        for (int i = 127; i >= 0; --i)
+        for (int i = 126; i >= 1; --i)
         {
             if (noteFreq[i] <= frequency)
             {
@@ -253,7 +253,7 @@ public:
     bool setNoteNameFromFrequency(float frequency)
     {
         uint8_t noteNameIndex = 0;
-        for (int i = 127; i >= 0; --i)
+        for (int i = 126; i >= 0; --i)
         {
             if (noteFreq[i] <= frequency)
             {

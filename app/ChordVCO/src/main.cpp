@@ -252,7 +252,9 @@ void setup()
     pot.init(POT1);
     enc.init(EC1A, EC1B, true);
     buttons[0].init(BTN1, false);
+    buttons[0].setHoldTime(250);
     buttons[1].init(BTN2, false);
+    buttons[1].setHoldTime(250);
     buttons[2].init(BTN3, false);
     gate.init(GATE);
     vOct.init(VOCT);
@@ -295,9 +297,9 @@ void setup()
 
 void loop()
 {
-    uint16_t potValue = pot.analogRead(false, true);
+    uint16_t potValue = pot.analogRead(true);
     enc.getDirection();
-    int16_t voct = vOct.analogRead(false, true);
+    int16_t voct = vOct.analogRead(false);
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
 
@@ -305,23 +307,41 @@ void loop()
     
     // ADC誤差補正
     voct = voct - VOCTInputErrorLUT[voct] + userConfig.voctTune;
+
+    // static uint8_t dispCount = 0;
+    // dispCount++;
+    // if (dispCount == 0)
+    // {
+    //     Serial.print("pot:");
+    //     Serial.print(potValue);
+    //     Serial.print(" voct:");
+    //     Serial.print(voct);
+    //     Serial.print(" cv1:");
+    //     Serial.print(cv1Value);
+    //     Serial.print(" cv2:");
+    //     Serial.print(cv2Value);
+    //     Serial.println();
+    // }
+
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
-    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT - 1) * 0.001);
+    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
 
     static uint8_t rootIndex = 0;
-    static uint8_t rootConfirmCount = 0;
+    // static uint8_t rootConfirmCount = 0;
     float freq = osc[0].getCource() * powVOct;
     uint8_t lastRootIndex = osc[0].getNoteNameIndexFromFreq(freq);
 
     if (lastRootIndex != rootIndex)
     {
-        rootConfirmCount++;
-        if (rootConfirmCount >= 10)
+        // rootConfirmCount++;
+        // if (rootConfirmCount >= 10)
         {
             arpStep = 0;
             rootIndex = lastRootIndex;
-            rootConfirmCount = 0;
-            // Serial.print("freq: ");
+            // rootConfirmCount = 0;
+            // Serial.print(" voct:");
+            // Serial.print(voct);
+            // Serial.print(" freq: ");
             // Serial.print(freq);
             // Serial.print(" rootIndex: ");
             // Serial.print(rootIndex);
@@ -331,10 +351,10 @@ void loop()
             // Serial.println();
         }
     }
-    else
-    {
-        rootConfirmCount = 0;
-    }
+    // else
+    // {
+    //     rootConfirmCount = 0;
+    // }
 
     uint8_t rootDiff = (rootIndex - userConfig.oscACoarseIndex) % 12;
     uint8_t scaleIndex = rootScaleIndexFromSemitone[userConfig.scale][rootDiff];
@@ -354,7 +374,7 @@ void loop()
             arpStep = osc[0].getRandom16(4);
     }
 
-    if (userConfig.voctHold == 0 || (userConfig.voctHold == 1 && gate.getEdge()))
+    if (userConfig.voctHold == 0 || (userConfig.voctHold == 1 && gate.getValue()))
     {
         osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][0] + rootMinus);
         osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][1]);
@@ -362,7 +382,7 @@ void loop()
         osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][3] + seventhMinus);
     }
 
-    if (userConfig.quantizeHold == 0 || (userConfig.quantizeHold == 1 && gate.getEdge()))
+    if (userConfig.quantizeHold == 0 || (userConfig.quantizeHold == 1 && gate.getValue()))
     {
         if (userConfig.quantizeCV > 0)
         {
@@ -414,7 +434,7 @@ void loop1()
         encMode = (encMode + 1) & 1;
         requiresUpdate |= 1;
     }
-    else if (encMode == 0)
+    else if (encMode == 0 && btn0 == 0)
     {
         if (menuIndex >= MENU_MAX - 1)
         {
@@ -474,6 +494,7 @@ void loop1()
                                                      constrainCyclic((int)osc[i].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
 
                 userConfig.oscAWave = osc[i].getWave();
+                pwm_set_gpio_level(LED1, 0);
             }
             else if (btn0 == 3)
             {
@@ -490,6 +511,7 @@ void loop1()
                     requiresUpdate |= userConfig.oscAFolding != osc[i].getFolding();
                     userConfig.oscAFolding = osc[i].getFolding();
                 }
+                pwm_set_gpio_level(LED1, PWM_RESO -1);
             }
         }
         break;

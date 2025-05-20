@@ -54,24 +54,24 @@ static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
 PollingTimeEvent updateOLED;
 
-const char testName[][5] = {"INT", "EXT"};
+const char biasONOFF[][5] = {"OFF", "ON"};
 
 SettingItem16 settings[] =
 {
-    SettingItem16(0, 4095, 1, &potValue, "pot: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &btn1Value, "btn1: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &btn2Value, "btn2: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &vOctValue, "voct: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &gateValue, "gate: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &cv1Value, "cv1: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &cv2Value, "cv2: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &outputValue, "out: %d", NULL, 0),
-    SettingItem16(0, 1, 1, &bias, "bias: %d", NULL, 0),
-    SettingItem16(0, 60, 1, &outputSemiSelect, "semi: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &btn1Value, "chk btnA: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &btn2Value, "chk btnB: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &potValue, "chk pot: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &vOctValue, "chk voct: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &gateValue, "chk gate: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &cv1Value, "chk cv1: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &cv2Value, "chk cv2: %d", NULL, 0),
+    SettingItem16(0, 4095, 1, &outputValue, "chk out: %d", NULL, 0),
+    SettingItem16(0, 60, 1, &outputSemiSelect, "sel semi: %d", NULL, 0),
+    SettingItem16(0, 1, 1, &bias, "sel bias: %s", biasONOFF, 2),
 };
 
 static MenuSection16 menu[] = {
-    {"TEST MODULE", settings, sizeof(settings) / sizeof(settings[0])},
+    {"ADJUSTMENT", settings, sizeof(settings) / sizeof(settings[0])},
 };
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
@@ -183,7 +183,9 @@ void loop()
     gateValue = gate.isEdgeHigh();
     cv1Value = cv1.analogReadDirectFast();
     cv2Value = cv2.analogReadDirectFast();
-    potValue = pot.analogRead(false, true);
+    potValue = pot.analogRead(false);
+    // potValue = pot.analogReadDirectFast();
+    // potValue = pot.analogReadDropLow4bit();
 
     outputValue = bias ? ((PWM_RESO >> 1) - 1) : constrain(((float)outputSemiSelect * semi2DacRatio), 0, PWM_RESO - 1);
     outputValue = constrain(outputValue - PWMCVDCOutputErrorLUT[outputSemiSelect], 0, PWM_RESO - 1);
@@ -196,6 +198,21 @@ void loop()
 
     gpio_put(LED1, gateValue ? HIGH : LOW);
     gpio_put(LED2, vOctValue > PWM_RESO - 2 ? HIGH : LOW);
+
+    // static uint8_t dispCount = 0;
+    // dispCount++;
+    // if (dispCount == 0)
+    // {
+    //     Serial.print("pot:");
+    //     Serial.print(potValue);
+    //     Serial.print(" voct:");
+    //     Serial.print(vOctValue);
+    //     Serial.print(" cv1:");
+    //     Serial.print(cv1Value);
+    //     Serial.print(" cv2:");
+    //     Serial.print(cv2Value);
+    //     Serial.println();
+    // }
 
     sleep_ms(1);
 }

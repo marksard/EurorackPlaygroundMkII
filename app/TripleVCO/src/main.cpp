@@ -298,9 +298,9 @@ void loop()
     static uint8_t lastMenuIndex = 0;
 
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
-    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT - 1) * 0.001);
-    float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT - 1) * 0.001);
-    float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT - 1) * 0.001);
+    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
+    float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
+    float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
 
     float freqencyA = max(coarseA * powVOct, 0.01);
     float selVoctB = 1;

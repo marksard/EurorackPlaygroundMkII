@@ -18,8 +18,10 @@
 #include "../../commonlib/common/epmkii_basicconfig.h"
 #include "../../commonlib/common/pwm_wrapper.h"
 
-#define PWM_RESO 4096         // 12bit
-#define SAMPLE_FREQ 44100
+#include "OscilloscopeLite.hpp"
+
+#define PWM_RESO 2048                                 // 11bit
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
 static uint interruptSliceNum;
 
 static const float semi2DacRatio = (PWM_RESO - 1) / 60.0;
@@ -41,40 +43,61 @@ static int16_t gateValue = 0;
 static int16_t potValue = 0;
 static int16_t cv1Value = 0;
 static int16_t cv2Value = 0;
-static int16_t btn1Value = 0;
-static int16_t btn2Value = 0;
+static int16_t btnAValue = 0;
+static int16_t btnBValue = 0;
 static int16_t bias = 0;
 static int16_t outputValue = 0;
 static int16_t outputSemiSelect = 0;
+static OscilloscopeLite oscillo(SAMPLE_FREQ);
 
 //////////////////////////////////////////
 
 // 画面周り
+#define MENU_MAX (1 + 1)
+static int menuIndex = 0;
 static uint8_t requiresUpdate = 1;
 static uint8_t encMode = 0;
+static uint8_t oscDataIndex = 0;
+static bool oscBias = 0;
+const char oscDataNames[][5] = {"VOCT", "CV1 ", "CV2 "};
 PollingTimeEvent updateOLED;
 
 const char biasONOFF[][5] = {"OFF", "ON"};
 
-SettingItem16 settings[] =
-{
-    SettingItem16(0, 4095, 1, &btn1Value, "chk btnA: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &btn2Value, "chk btnB: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &potValue, "chk pot: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &vOctValue, "chk voct: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &gateValue, "chk gate: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &cv1Value, "chk cv1: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &cv2Value, "chk cv2: %d", NULL, 0),
-    SettingItem16(0, 4095, 1, &outputValue, "chk out: %d", NULL, 0),
-    SettingItem16(0, 60, 1, &outputSemiSelect, "sel semi: %d", NULL, 0),
-    SettingItem16(0, 1, 1, &bias, "sel bias: %s", biasONOFF, 2),
+SettingItem16 settings1[] =
+    {
+        SettingItem16(0, 60, 1, &outputSemiSelect, "sel semi: %d", NULL, 0),
+        SettingItem16(0, 1, 1, &bias, "out bias: %s", biasONOFF, 2),
+        SettingItem16(0, 4095, 1, &outputValue, "chk out: %d", NULL, 0),
+};
+
+SettingItem16 settings2[] =
+    {
+        SettingItem16(0, 4095, 1, &potValue, "chk pot: %d", NULL, 0),
+        SettingItem16(0, 4095, 1, &btnAValue, "chk btnA: %d", NULL, 0),
+        SettingItem16(0, 4095, 1, &btnBValue, "chk btnB: %d", NULL, 0),
+        SettingItem16(0, 4095, 1, &gateValue, "chk gate: %d", NULL, 0),
+        SettingItem16(0, 4095, 1, &vOctValue, "chk voct: %d", NULL, 0),
+        SettingItem16(0, 4095, 1, &cv1Value, "chk cv1: %d", NULL, 0),
+        SettingItem16(0, 4095, 1, &cv2Value, "chk cv2: %d", NULL, 0),
 };
 
 static MenuSection16 menu[] = {
-    {"ADJUSTMENT", settings, sizeof(settings) / sizeof(settings[0])},
+    {"OUTPUT CHK", settings1, sizeof(settings1) / sizeof(settings1[0])},
+    {"INPUT CHK", settings2, sizeof(settings2) / sizeof(settings2[0])},
 };
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
+template <typename vs = int8_t>
+
+vs constrainCyclic(vs value, vs min, vs max)
+{
+    if (value > max)
+        return min;
+    if (value < min)
+        return max;
+    return value;
+}
 
 void initOLED()
 {
@@ -94,7 +117,15 @@ void dispOLED()
     requiresUpdate = 0;
     u8g2.clearBuffer();
 
-    menuControl.draw(&u8g2, encMode);
+    switch (menuIndex)
+    {
+    case 0:
+        oscillo.draw(encMode, (char *)(oscDataNames[oscDataIndex]), oscBias);
+        break;
+    default:
+        menuControl.draw(&u8g2, encMode);
+        break;
+    }
 
     u8g2.sendBuffer();
 }
@@ -106,7 +137,6 @@ void checkVOct()
     static bool flag = false;
     static int8_t count = 0;
     static int32_t vOctMean = 0;
-    vOctValue = vOctValue - VOCTInputErrorLUT[vOctValue];
     if (vOctValue > lastVOctValue + 30 || vOctValue < lastVOctValue - 30)
     {
         flag = true;
@@ -137,7 +167,20 @@ void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
     // gpio_put(LED1, HIGH);
-
+    switch (oscDataIndex)
+    {
+    case 0:
+        oscillo.write(vOctValue);
+        break;
+    case 1:
+        oscillo.write(cv1Value);
+        break;
+    case 2:
+        oscillo.write(cv2Value);
+        break;
+    default:
+        break;
+    }
     // gpio_put(LED1, LOW);
 }
 
@@ -173,7 +216,7 @@ void setup()
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 
-    // delay(500);
+    oscillo.init(&u8g2, 0);
 }
 
 void loop()
@@ -196,8 +239,33 @@ void loop()
     pwm_set_gpio_level(OUT5, outputValue);
     pwm_set_gpio_level(OUT6, outputValue);
 
-    gpio_put(LED1, gateValue ? HIGH : LOW);
-    gpio_put(LED2, vOctValue > PWM_RESO - 2 ? HIGH : LOW);
+    vOctValue = vOctValue - VOCTInputErrorLUT[vOctValue];
+
+    if (menuIndex == 0)
+    {
+        switch (oscDataIndex)
+        {
+        case 0:
+            gpio_put(LED1, vOctValue < 2 ? HIGH : LOW);
+            gpio_put(LED2, vOctValue > ADC_RESO - 2 ? HIGH : LOW);
+            break;
+        case 1:
+            gpio_put(LED1, cv1Value < 2 ? HIGH : LOW);
+            gpio_put(LED2, cv1Value > ADC_RESO - 2 ? HIGH : LOW);
+            break;
+        case 2:
+            gpio_put(LED1, cv2Value < 2 ? HIGH : LOW);
+            gpio_put(LED2, cv2Value > ADC_RESO - 2 ? HIGH : LOW);
+            break;
+        default:
+            break;
+        }
+    }
+    else
+    {
+        gpio_put(LED1, gateValue ? HIGH : LOW);
+        gpio_put(LED2, vOctValue > ADC_RESO - 2 ? HIGH : LOW);
+    }
 
     // static uint8_t dispCount = 0;
     // dispCount++;
@@ -214,7 +282,7 @@ void loop()
     //     Serial.println();
     // }
 
-    sleep_ms(1);
+    sleep_us(50);
 }
 
 void setup1()
@@ -227,29 +295,67 @@ void setup1()
 void loop1()
 {
     int8_t encValue = enc.getValue();
-    btn1Value = buttons[0].getState();
-    btn2Value = buttons[1].getState();
-    uint8_t btn2 = buttons[2].getState();
+    btnAValue = buttons[0].getState();
+    btnBValue = buttons[1].getState();
+    uint8_t btnREValue = buttons[2].getState();
 
-    if (btn1Value > 0 || btn2Value > 0)
-    {
-        requiresUpdate |= 1;
-    }
-
-    if (btn2 == 2)
+    if (btnREValue == 2)
     {
         encMode = (encMode + 1) & 1;
         requiresUpdate |= 1;
     }
     else if (encMode == 0)
     {
-        requiresUpdate |= menuControl.select(encValue);
+        if (menuIndex >= MENU_MAX - 1)
+        {
+            requiresUpdate |= menuControl.select(encValue);
+            if (menuControl.isUnder())
+            {
+                menuIndex--;
+                requiresUpdate = true;
+            }
+        }
+        else
+        {
+            int menu = 0;
+            menu = constrain(menuIndex + encValue, 0, MENU_MAX - 1);
+            requiresUpdate |= menuIndex != menu ? 1 : 0;
+            menuIndex = menu;
+        }
+
         encValue = 0;
     }
 
-    requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
-    requiresUpdate = 1;
-    checkVOct();
+    switch (menuIndex)
+    {
+    case 0:
+        requiresUpdate |= 1;
+        if ((btnAValue == 3 && btnBValue == 2) || (btnAValue == 2 && btnBValue == 3))
+        {
+            oscBias = oscBias ? false : true;
+        }
+        else if (btnAValue == 2)
+        {
+            oscDataIndex = constrainCyclic(oscDataIndex + 1, 0, 2);
+        }
+        else if (btnBValue == 2)
+        {
+            oscillo.setTrigger(oscillo.getTrigger() ? false : true);
+        }
+        oscillo.addVerticalScale(encValue);
+        oscillo.setHorizontalScale(map(potValue, 0, ADC_RESO - 1, 0, SNAPSHOT_INDEX_MAX));
+        break;
+    default:
+        if (btnAValue > 0 || btnBValue > 0)
+        {
+            requiresUpdate |= 1;
+        }
+
+        requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
+        requiresUpdate = 1;
+        checkVOct();
+        break;
+    }
 
     if (!updateOLED.ready())
     {

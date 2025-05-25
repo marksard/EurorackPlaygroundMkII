@@ -144,13 +144,12 @@ public:
         drawString(encMode, pDataName, isBias);
         if (_horizontalScale >= SNAPSHOT_INDEX_MAX)
         {
-            // drawData(calcDataLong());
-            calcDataLong2();
+            shiftAndAppendLongTermData();
             drawData();
         }
         else
         {
-            calcData();
+            snapShotData();
             drawData();
         }
     }
@@ -199,7 +198,7 @@ protected:
         }
     }
 
-    void calcData()
+    void snapShotData()
     {
         int16_t dataMin = DATA_MAX_VALUE;
         int16_t dataMax = 0;
@@ -241,7 +240,7 @@ protected:
         }
     }
 
-    int16_t calcDataLong()
+    int16_t appendLongTermData()
     {
         static int16_t index = 0;
         _data.snapShot(1);
@@ -279,7 +278,7 @@ protected:
         return index;
     }
 
-    void calcDataLong2()
+    void shiftAndAppendLongTermData()
     {
         _data.snapShot(SNAPSHOT_INDEX_MAX);
         _dataBuff[DRAW_AREA_SIZE] = _data.get(0);
@@ -319,6 +318,12 @@ protected:
             y = constrain(map(tmpM1, rangeMin, rangeMax, FRM_BTM - 1, FRM_TOP + 1), FRM_TOP + 1, FRM_BTM - 1);
             y2 = constrain(map(tmp, rangeMin, rangeMax, FRM_BTM - 1, FRM_TOP + 1), FRM_TOP + 1, FRM_BTM - 1);
             _pU8g2->drawLine(_left + FRM_LFT + x, _top + y, _left + FRM_LFT + x + 1, _top + y2);
+
+            // 線を太くする（上下にも点を打つ）
+            _pU8g2->drawPixel(_left + FRM_LFT + x,     _top + y + 1);
+            _pU8g2->drawPixel(_left + FRM_LFT + x,     _top + y - 1);
+            _pU8g2->drawPixel(_left + FRM_LFT + x + 1, _top + y2 + 1);
+            _pU8g2->drawPixel(_left + FRM_LFT + x + 1, _top + y2 - 1);
         }
     }
 
@@ -375,7 +380,7 @@ protected:
 
         sprintf(chrBuff, "A+B", tmp);
         _pU8g2->drawStr(_left, _top + FRM_CENTER - 8, chrBuff);
-        sprintf(chrBuff, "BIAS", tmp);
+        sprintf(chrBuff, "bias", tmp);
         _pU8g2->drawStr(_left, _top + FRM_CENTER, chrBuff);
 
         tmp = _rangeMin - (isBias ? 2.5 : 0);
@@ -388,7 +393,7 @@ protected:
         }
         else
         {
-            sprintf(chrBuff, "A:%s B:%s pot:%5.1fms", pDataName, _trigger ? "TRG" : "---", _divRatio * (float)snapshotSteps[_horizontalScale]);
+            sprintf(chrBuff, "A:%s B:%s pot:%5.1fms", pDataName, _trigger ? "TRG" : "---", _divRatio * snapshotSteps[_horizontalScale]);
         }
 
         _pU8g2->drawStr(_left, _top + FRM_BTM, chrBuff);
@@ -396,7 +401,6 @@ protected:
 
 protected:
     float _convertCoffVolt = DATA_MAX_VALUE_F / DATA_MAX_VOLT;
-    float _convertVoltCoff = DATA_MAX_VOLT / DATA_MAX_VALUE_F;
     U8G2 *_pU8g2;
     int16_t _horizontalScale;
     int16_t _verticalScale;

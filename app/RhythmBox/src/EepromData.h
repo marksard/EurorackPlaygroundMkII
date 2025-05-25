@@ -20,7 +20,7 @@ void initEEPROM()
 }
 
 // 設定値系
-const static char *UI_VER = "rytsq_conf_005";
+const static char *UI_VER = "rytsq_conf_001";
 struct UserConfig
 {
     char ver[15];
@@ -32,6 +32,8 @@ struct UserConfig
     float triggers[SEQUENCER_TOTAL];
     float pans[SEQUENCER_TOTAL];
     float mutes[SEQUENCER_TOTAL];
+    float agcMaxGain = 0.9;
+    float isUpdateStepIndicator = 0.0;
 };
 
 int startUserConfigAddress = 0;
@@ -50,22 +52,24 @@ void initUserConfig(UserConfig *pUserConfig)
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
         pUserConfig->pitches[i] = 1.0;
-        pUserConfig->decays[i] = 1.0;
+        pUserConfig->decays[i] = 0.8;
         pUserConfig->triggers[i] = 0;
         pUserConfig->mutes[i] = 0;
     }
     pUserConfig->volumes[0] = 0.7;
     pUserConfig->volumes[1] = 1.0;
-    pUserConfig->volumes[2] = 1.0;
-    pUserConfig->volumes[3] = 0.8;
-    pUserConfig->volumes[4] = 1.0;
+    pUserConfig->volumes[2] = 0.5;
+    pUserConfig->volumes[3] = 0.7;
+    pUserConfig->volumes[4] = 0.9;
     pUserConfig->volumes[5] = 1.0;
-    pUserConfig->pans[0] = 4;
-    pUserConfig->pans[1] = 0;
+    pUserConfig->pans[0] = 0;
+    pUserConfig->pans[1] = 4;
     pUserConfig->pans[2] = 3;
     pUserConfig->pans[3] = 1;
     pUserConfig->pans[4] = 2;
     pUserConfig->pans[5] = 2;
+    pUserConfig->agcMaxGain = 0.9;
+    pUserConfig->isUpdateStepIndicator = 0.0;
 }
 
 void loadUserConfig(UserConfig *pUserConfig)

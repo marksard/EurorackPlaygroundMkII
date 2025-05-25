@@ -84,7 +84,7 @@ public:
     {
     }
 
-    void updateDisplay(U8G2 *pU8g2, int8_t currentStep, int8_t selector, int8_t mode, bool requiresUpdate = true)
+    void updateDisplay(U8G2 *pU8g2, int8_t currentStep, int8_t selector, int8_t mode, bool requiresUpdate = true, bool isUpdateStepIndicator = true)
     {
         uint8_t origin_x = 15;
         uint8_t origin_y = 15;
@@ -94,6 +94,10 @@ public:
         // ステップインジケータ部分のみ更新
         if (requiresUpdate == false)
         {
+            if (isUpdateStepIndicator == false)
+            {
+                return;
+            }
             pU8g2->setDrawColor(0);
             pU8g2->drawBox(origin_x + (seqXStep * _prevCurrentStep), origin_y - 2, seqXStep, 3);
             pU8g2->setDrawColor(2);
@@ -106,8 +110,8 @@ public:
         _prevCurrentStep = currentStep;
 
         pU8g2->clearBuffer();
-
-        pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 3);
+        if (isUpdateStepIndicator == true)
+            pU8g2->drawBox(origin_x + (seqXStep * currentStep), origin_y - 2, seqXStep, 3);
 
         if (mode == 0)
             pU8g2->drawBox(10, (origin_y + 1) + (seqYStep * (selector % SEQUENCER_TOTAL)), 4, 6);

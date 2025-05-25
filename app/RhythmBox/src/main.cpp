@@ -81,6 +81,13 @@ typedef struct
 const char selMute[][5] = {"----", "MUTE"};
 const char selPan[][5] = {"L2", "L1", "C", "R1", "R2"};
 const char selTrigger[][5] = {"INT", "VOCT", "CV1", "CV2"};
+const char selIndication[][5] = {"OFF", "ON"};
+
+SettingItemF settings[] =
+{
+    SettingItemF(0.0, 1.0, 1.00, &userConfig.isUpdateStepIndicator, "STEP: %s", selIndication, 2),
+    SettingItemF(0.0, 1.5, 0.02, &userConfig.agcMaxGain, "GAIN: %4.2f", NULL, 0),
+};
 
 SettingItemF muteSettings[] =
 {
@@ -143,6 +150,7 @@ SettingItemF trigSettings[] =
 };
 
 static MenuSectionF menu[] = {
+    {"SETTINGS", settings, sizeof(settings) / sizeof(settings[0])},
     {"MUTE", muteSettings, sizeof(muteSettings) / sizeof(muteSettings[0])},
     {"VOLUME", volumeSettings, sizeof(volumeSettings) / sizeof(volumeSettings[0])},
     {"PAN", panSettings, sizeof(panSettings) / sizeof(panSettings[0])},
@@ -164,6 +172,7 @@ static ActiveGainControl agc;
 
 void initOLED()
 {
+    u8g2.setBusClock(400000);
     u8g2.begin();
     u8g2.setContrast(40);
     u8g2.setFontPosTop();
@@ -190,7 +199,8 @@ void saveDisp()
 void dispOLED()
 {
     if (menuIndex < 6) {
-        seq.updateDisplay(&u8g2, clockCount & (STEP_MAX - 1), menuIndex, encMode, requiresUpdate);
+        seq.updateDisplay(&u8g2, clockCount & (STEP_MAX - 1), menuIndex, encMode, 
+        requiresUpdate, userConfig.isUpdateStepIndicator > 0.1 ? true : false);
         if (saveConfirm)
         {
             saveDisp();
@@ -258,7 +268,7 @@ void setup()
     cv2.init(CV2);
     clockEdge.init(GATE);
     // gain最大値の設定は全部同時に鳴ることはほぼないため大きめにしている
-    agc.init(PWM_RESO, SEQUENCER_TOTAL, 0.97);
+    agc.init(PWM_RESO, SEQUENCER_TOTAL, 0.9);
 
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
@@ -302,8 +312,9 @@ void loop()
     bool voctValue = vOct.isEdgeHigh();
     bool cv1Value = cv1.isEdgeHigh();
     bool cv2Value = cv2.isEdgeHigh();
-
     bool trig = clockEdge.isEdgeHigh();
+
+    agc.setGainMax(userConfig.agcMaxGain);
 
     if (trig)
     {
@@ -463,7 +474,7 @@ void loop1()
         if (encMode)
         {
             requiresUpdate |= seq.addSelectPattern(menuIndex, encValue);
-            userConfig.pattern[menuIndex] = (float)seq.getPattern(menuIndex);
+            userConfig.pattern[menuIndex] = seq.getPattern(menuIndex);
         }
     }
     else
@@ -495,7 +506,9 @@ void loop1()
     }
 
     // カウンタリセット時点灯
-    gpio_put(LED1, (clockCount & (STEP_MAX - 1)) == 0 ? HIGH : LOW);
+    // int16_t div16 = (clockCount % STEP_MAX) < (STEP_MAX >> 1) ? 1 : 0;
+    int16_t div4 = (clockCount % 4) < (4 >> 1) ? 1 : 0;
+    gpio_put(LED1, div4 ? HIGH : LOW);
     gpio_put(LED2, clockCount == 0 ? HIGH : LOW);
 
     dispOLED();

@@ -387,8 +387,8 @@ void loop()
         if (userConfig.quantizeCV > 0)
         {
             quantizer.setScale(userConfig.quantizeScale);
-            uint16_t cv = map(userConfig.quantizeCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, (7 * userConfig.quantizeOct));
-            pwm_set_gpio_level(OUT5, quantizer.Quantize(cv));
+            uint16_t semi = map(userConfig.quantizeCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, (7 * userConfig.quantizeOct));
+            pwm_set_gpio_level(OUT5, constrain(quantizer.Quantize(semi) - PWMCVDCOutputErrorLUT[semi], 0, PWM_RESO - 1));
         }
     }
 

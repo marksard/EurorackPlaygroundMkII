@@ -170,9 +170,9 @@ void setup()
 void loop()
 {
     enc.getDirection();
-    uint16_t voct = vOct.analogReadDirect();
-    int16_t cv1Value = cv1.analogReadDirect();
-    uint16_t cv2Value = cv2.analogReadDirect();
+    uint16_t voct = vOct.analogReadDirectFast();
+    int16_t cv1Value = cv1.analogReadDirectFast();
+    uint16_t cv2Value = cv2.analogReadDirectFast();
     // uint8_t gateValue = digitalReadFast(GATE) ? 1 : 0;
 
     static int16_t lastBpm = 0;

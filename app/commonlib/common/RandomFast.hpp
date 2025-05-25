@@ -17,13 +17,13 @@ public:
         m_z = 2;
     }
 
-    void randomSeed(ulong seed)
+    inline void randomSeed(ulong seed)
     {
         m_w = seed;
         m_z = m_w + seed;
     }
 
-    uint32_t getRandomFast()
+    inline uint32_t getRandomFast()
     {
         // Multiply-with-carry
         m_z = 36969L * (m_z & 65535L) + (m_z >> 16);
@@ -31,8 +31,8 @@ public:
         return (m_z << 16) + m_w;
     }
 
-    int16_t getRandom16(int16_t max) { return getRandomFast() % max; }
-    int16_t getRandom16(int16_t min, int16_t max)
+    inline int16_t getRandom16(int16_t max) { return getRandomFast() % max; }
+    inline int16_t getRandom16(int16_t min, int16_t max)
     {
         uint32_t result = getRandomFast();
         int16_t scaled_result = (int16_t)(result % (max - min)) + min;

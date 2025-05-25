@@ -49,6 +49,11 @@ public:
         _gain = min(_divs / _peak, _gainMax);
     }
 
+    inline void setGainMax(float gainMax)
+    {
+        _gainMax = gainMax * (1 << 10);
+    }
+
     void print()
     {
         Serial.print("gain:");

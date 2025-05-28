@@ -1,5 +1,5 @@
 /*!
- * SmoothRandomCV
+ * Adjuster APP
  * Copyright 2024 marksard
  * This software is released under the MIT license.
  * see https://opensource.org/licenses/MIT

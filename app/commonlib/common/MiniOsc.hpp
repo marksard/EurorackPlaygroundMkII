@@ -48,7 +48,7 @@ public:
     {
     }
 
-    void init(float clock)
+    void init(float clock, bool signedOut = false)
     {
         _phaseAccum = 0;
         _tuningWordM = 0;
@@ -62,16 +62,17 @@ public:
         _bpm = 0;
         _bpmReso = 4;
         _rnd.randomSeed(OSC_WAVE_BIT32 - 1);
+        _signedOut = signedOut;
     }
 
-    uint16_t getWaveValue()
+    int16_t getWaveValue()
     {
         if (_start == false) return 0;
 
         _phaseAccum = _phaseAccum + _tuningWordM;
         uint32_t index = _phaseAccum >> indexBit;
         uint32_t indexHeight = (index >> WAVE_INDEX_DIV_BIT);
-        uint16_t value = 0;
+        int16_t value = 0;
         switch (_wave)
         {
         case Wave::SQU:
@@ -89,6 +90,11 @@ public:
         default:
             value = 0;
             break;
+        }
+
+        if (_signedOut)
+        {
+            value = value - (WAVE_HEIGHT >> 1);
         }
 
         return value >> _attenuate;
@@ -173,6 +179,7 @@ private:
     byte _bpmReso;
     ulong _duration;
     RandomFast _rnd;
+    bool _signedOut;
 
     static constexpr float noteFreq[128] = {
         8.175798916, //     "C-2",

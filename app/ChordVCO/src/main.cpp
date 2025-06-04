@@ -297,9 +297,9 @@ void setup()
 
 void loop()
 {
-    uint16_t potValue = pot.analogRead(true);
+    pot.analogRead(true);
     enc.getDirection();
-    int16_t voct = vOct.analogRead(false);
+    int16_t voct = vOct.analogReadDirectFast();
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
 
@@ -459,7 +459,7 @@ void loop1()
     // メニュー変更時のポットロック・ロック解除
     if (!unlock)
     {
-        if (lastPotValue + 10 < potValue || lastPotValue - 10 > potValue)
+        if (lastPotValue + 20 < potValue || lastPotValue - 20 > potValue)
         {
             unlock = 1;
         }

@@ -19,12 +19,15 @@
 #ifdef bit_10
 #define WAVE_INDEX_DIV_BIT 2 // WAVE_LENGTH_BIT - WAVE_HEIGHT
 #define WAVE_HEIGHT 1024
+#define WAVE_HEIGHT_BIT 10
 #elif defined(bit_11)
 #define WAVE_INDEX_DIV_BIT 1 // WAVE_LENGTH_BIT - WAVE_HEIGHT
 #define WAVE_HEIGHT 2048
+#define WAVE_HEIGHT_BIT 11
 #else
 #define WAVE_INDEX_DIV_BIT 0 // WAVE_LENGTH_BIT - WAVE_HEIGHT
 #define WAVE_HEIGHT 4096
+#define WAVE_HEIGHT_BIT 12
 #endif
 
 #define OSC_WAVE_BIT 32
@@ -123,7 +126,7 @@ public:
 
     void setLevel(uint8_t level)
     {
-        _attenuate = constrain(10 - level, 0, 10);
+        _attenuate = constrain(WAVE_HEIGHT_BIT - level, 0, WAVE_HEIGHT_BIT);
     }
 
     static float getFreqFromNoteIndex(uint8_t value)

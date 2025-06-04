@@ -29,7 +29,7 @@ public:
         _signedOut = signedOut;
     }
 
-    inline void process(uint16_t input)
+    inline void process(int16_t input)
     {
         float in = (float)input;
 

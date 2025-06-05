@@ -8,6 +8,7 @@
 #pragma once
 
 #include <Arduino.h>
+// #include <algorithm> // std::max, std::min
 
 /// @brief ActiveGainControl class
 /// @details 音量を一定に保つためのクラス。音量が大きくなったらGainを下げる。音量が小さくなったらGainを上げる。
@@ -18,40 +19,52 @@ public:
 
     /// @brief 初期化
     /// @param reso resoはPWMの分解能。12bitなら4096
-    /// @param waveCount 波形の数。4つの波形を同時に再生する場合は4
+    /// @param waveMixCount 波形の数。4つの波形を同時に再生する場合は4
     /// @param gainMax Gainの最大値。0.0-1.0の範囲で指定
-    void init(int16_t reso, int16_t waveCount, float gainMax)
+    void init(int16_t reso, int16_t waveMixCount, float gainMax)
     {
-        // 浮動小数点演算を避けるため、gain計算は10bitシフトして整数演算にする
+        // 浮動小数点演算を避けるため、gain計算はCALC_SHIFTぶんシフトして整数演算にする
         _reso = reso;
         _bias = reso >> 1;
-        _gainMax = gainMax * (1 << 10);
-        _divs = _bias << 10;
+        _gainMax = gainMax * (1 << GAIN_SHIFT);
+        _divs = _bias << GAIN_SHIFT;
 
-        _peak = waveCount * (_bias - 1);
+        _peak = waveMixCount * (_bias - 1);
         _gain = _gainMax;
         _level = 0;
     }
 
+    /// @brief 現在の音量を設定
+    /// @param levelL 左チャンネルの音量。バイアスなしsigned
+    /// @param levelR 右チャンネルの音量。バイアスなしsigned
     inline void setCurrentLevel(int16_t levelL, int16_t levelR = 0)
     {
-        _level = max(abs(levelL), abs(levelR));
+        _level = std::max(abs(levelL), abs(levelR));
     }
 
+    /// @brief AGCの処理後の音量を取得
+    /// @param level 入力レベル。バイアスなしsigned
+    /// @return AGCの処理後の音量 バイアス付きunsigned
     inline int16_t getProcessedLevel(int16_t level)
     {
-        return constrain(((level * _gain) >> 10) + _bias, 0, _reso - 1);
+        return constrain(((level * _gain) >> GAIN_SHIFT) + _bias, 0, _reso - 1);
     }
 
+    /// @brief AGCの更新
+    /// @param decaySpeed
     inline void update(uint8_t decaySpeed = 1)
     {
-        _peak = (_level > _peak) ? _level : _peak - decaySpeed; // レベルが大きくなったら上書き。それ以外は徐々に減衰
-        _gain = min(_divs / _peak, _gainMax);
+        // レベルが大きくなったら上書き。それ以外は徐々に減衰
+        _peak = (_level > _peak) ? _level : _peak - decaySpeed;
+        _gain = std::min(_divs / _peak, _gainMax);
     }
 
+    /// @brief AGCの最大ゲインを設定
+    /// @param gainMax (0.0-1.0の範囲で指定)
     inline void setGainMax(float gainMax)
     {
-        _gainMax = gainMax * (1 << 10);
+        gainMax = constrain(gainMax, 0.0f, 1.0f);
+        _gainMax = gainMax * (1 << GAIN_SHIFT);
     }
 
     void print()
@@ -66,6 +79,7 @@ public:
     }
 
 private:
+    constexpr static int16_t GAIN_SHIFT = 10; // gain計算のためのシフト量
     int16_t _reso;
     int16_t _bias;
     int32_t _gainMax;

@@ -101,7 +101,7 @@ public:
         _mute = false;
     }
 
-    uint16_t updateWave()
+    int16_t updateWave()
     {
         if (!_start)
             return _bias;
@@ -120,7 +120,7 @@ public:
         if (_mute)
             return _bias;
 
-        value = (uint16_t)((((int32_t)value * _decayValue) >> 10) + _bias);
+        value = (int16_t)((((int32_t)value * _decayValue) >> 10) + _bias);
         // simplest linear interpolation
         // value = (_lastValue + value) >> 1;
         // _lastValue = value;

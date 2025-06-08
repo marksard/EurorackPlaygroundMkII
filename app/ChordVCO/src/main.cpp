@@ -21,7 +21,6 @@
 #include "../../commonlib/common/Quantizer.hpp"
 #include "Oscillator.hpp"
 #include "EepromData.h"
-#include "SmoothRandomCV.hpp"
 
 #define PWM_RESO 2048 // 11bit
 #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
@@ -101,7 +100,6 @@ const char selOct[][5] = {"---", "12", "24"};
 const char selArp[][5] = {"---", "UP", "DOWN", "RAND"};
 const char selHold[][5] = {"FREE", "GATE"};
 const char scales[][5] = {"MIN", "MAJ"};
-// static SmoothRandomCV smoothRand(ADC_RESO);
 
 SettingItem16 commonSettings[] =
     {
@@ -131,7 +129,6 @@ static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
 void drawOSC()
 {
     static char disp_buf[33] = {0};
-    // u8g2.setFont(u8g2_font_VCR_OSD_tf);
     u8g2.setFont(u8g2_font_7x14B_tf);
 
     sprintf(disp_buf, "Chord VCO: %s", scales[userConfig.scale]);
@@ -223,7 +220,6 @@ void dispOLED()
 void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
-    // gpio_put(LED1, HIGH);
 
     int16_t sum = 0;
     int16_t values[OSCILLATOR_MAX] = {0};
@@ -237,7 +233,6 @@ void interruptPWM()
     pwm_set_gpio_level(OUT1, agc.getProcessedLevel(sum));
     pwm_set_gpio_level(OUT2, values[arpStep]);
     pwm_set_gpio_level(OUT6, osc[0].getRandom16(PWM_RESO));
-    // gpio_put(LED1, LOW);
 }
 
 void setup()
@@ -425,10 +420,6 @@ void loop1()
     static uint8_t unlock = 0;
     static uint8_t lastMenuIndex = 0;
 
-    // pwm_set_gpio_level(LED1, cv1Value);
-    // pwm_set_gpio_level(LED2, gate.getValue() ? 0 : PWM_RESO - 1);
-
-    // requiresUpdate |= updateMenuIndex(btn0, btn1);
     if (btn2 == 2)
     {
         encMode = (encMode + 1) & 1;

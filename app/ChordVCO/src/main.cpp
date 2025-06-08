@@ -36,7 +36,8 @@ static EdgeChecker gate;
 static SmoothAnalogRead vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
-static int pwmOuts[6] = {OUT1, OUT2, OUT3, OUT4, OUT5, OUT6};
+static int pwmOuts[] = {OUT1, OUT2, OUT3, OUT4, OUT5, OUT6};
+static uint8_t pwmOutsCount = sizeof(pwmOuts) / sizeof(pwmOuts[0]);
 
 // ユーザー設定
 static UserConfig userConfig;
@@ -286,7 +287,7 @@ void setup()
     initPWM(LED2, PWM_RESO);
 
     uint slice = 0;
-    for (int i = 0; i < 6; ++i)
+    for (int i = 0; i < pwmOutsCount; ++i)
     {
         slice |= 0x01 << pwm_gpio_to_slice_num(pwmOuts[i]);
     }
@@ -299,46 +300,45 @@ void loop()
 {
     pot.analogRead(true);
     enc.getDirection();
-    int16_t voct = vOct.analogReadDirectFast();
+    int16_t voct = vOct.analogRead(false);
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
 
     agc.update(3);
     
     // ADC誤差補正
-    voct = voct - VOCTInputErrorLUT[voct] + userConfig.voctTune;
-
-    // static uint8_t dispCount = 0;
-    // dispCount++;
-    // if (dispCount == 0)
-    // {
-    //     Serial.print("pot:");
-    //     Serial.print(potValue);
-    //     Serial.print(" voct:");
-    //     Serial.print(voct);
-    //     Serial.print(" cv1:");
-    //     Serial.print(cv1Value);
-    //     Serial.print(" cv2:");
-    //     Serial.print(cv2Value);
-    //     Serial.println();
-    // }
+    voct = constrain(voct - VOCTInputErrorLUT[voct] + userConfig.voctTune, 0, ADC_RESO + userConfig.voctTune);
 
     // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
     float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
 
     static uint8_t rootIndex = 0;
-    // static uint8_t rootConfirmCount = 0;
     float freq = osc[0].getCource() * powVOct;
     uint8_t lastRootIndex = osc[0].getNoteNameIndexFromFreq(freq);
-
+    
+    // static uint8_t dispCount = 0;
+    // dispCount++;
+    // if (dispCount == 0)
+    // {
+    //     Serial.print(" voct:");
+    //     Serial.print(voct);
+    //     Serial.print(" freq:");
+    //     Serial.print(freq);
+    //     Serial.print(" rootIndex: ");
+    //     Serial.print(rootIndex);
+    //     Serial.println();
+    // }
+    
+    // static uint8_t rootConfirmCount = 0;
     if (lastRootIndex != rootIndex)
     {
         // rootConfirmCount++;
-        // if (rootConfirmCount >= 10)
+        // if (rootConfirmCount >= 4)
         {
             arpStep = 0;
             rootIndex = lastRootIndex;
             // rootConfirmCount = 0;
+
             // Serial.print(" voct:");
             // Serial.print(voct);
             // Serial.print(" freq: ");

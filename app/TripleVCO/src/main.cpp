@@ -32,7 +32,8 @@ static Button buttons[3];
 static SmoothAnalogRead vOct;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
-static int pwmOuts[6] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
+static int pwmOuts[] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
+static uint8_t pwmOutsCount = sizeof(pwmOuts) / sizeof(pwmOuts[0]);
 
 // ユーザー設定
 static UserConfig userConfig;
@@ -86,7 +87,6 @@ static char oscNames[3][2] = {"A", "B", "C"};
 void drawOSC(uint8_t oscIndex, uint8_t rangeMode)
 {
     static char disp_buf[33] = {0};
-    // u8g2.setFont(u8g2_font_VCR_OSD_tf);
     u8g2.setFont(u8g2_font_7x14B_tf);
     if (oscIndex == 2)
     {
@@ -229,7 +229,6 @@ void setup()
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);
-    // pinMode(GATE, INPUT);
 
     initEEPROM();
     loadUserConfig(&userConfig);
@@ -262,7 +261,7 @@ void setup()
     initPWM(LED2, PWM_RESO);
 
     uint slice = 0;
-    for (int i = 0; i < 6; ++i)
+    for (int i = 0; i < pwmOutsCount; ++i)
     {
         slice |= 0x01 << pwm_gpio_to_slice_num(pwmOuts[i]);
     }
@@ -286,9 +285,9 @@ void loop()
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
     // ADC誤差補正
-    voct = voct - VOCTInputErrorLUT[voct] + userConfig.voctTune;
-    cv1Value = cv1Value - VOCTInputErrorLUT[cv1Value] + userConfig.voctTune;
-    cv2Value = cv2Value - VOCTInputErrorLUT[cv2Value] + userConfig.voctTune;
+    voct = constrain(voct - VOCTInputErrorLUT[voct] + userConfig.voctTune, 0, ADC_RESO + userConfig.voctTune);
+    cv1Value = constrain(cv1Value - VOCTInputErrorLUT[cv1Value] + userConfig.voctTune, 0, ADC_RESO + userConfig.voctTune);
+    cv2Value = constrain(cv2Value - VOCTInputErrorLUT[cv2Value] + userConfig.voctTune, 0, ADC_RESO + userConfig.voctTune);
 
     static float coarseA = userConfig.oscACoarse;
     static float coarseB = userConfig.oscBCoarse;

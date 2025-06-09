@@ -138,12 +138,12 @@ public:
             value = applyPhaseShift(value, indexHeight, indexPhase);
             break;
         case Wave::MUL_TRI:
-        {
-            value = getTriangle(index, indexHeight);
-            uint16_t value2 = getTriangle(index, indexPhase);
-            value = ((value * value2) >> WAVE_HEIGHT_BIT) % WAVE_HEIGHT;
-        }
-        break;
+            {
+                value = getTriangle(index, indexHeight);
+                uint16_t value2 = getTriangle(index, indexPhase);
+                value = ((value * value2) >> WAVE_HEIGHT_BIT) % WAVE_HEIGHT;
+            }
+            break;
         case Wave::TRI:
             value = getTriangle(index, indexHeight);
             if (_isFolding)
@@ -237,30 +237,23 @@ public:
 
     float getCource() { return _coarse; }
 
-    uint8_t getNoteNameIndexFromFreq(float frequency)
-    {
-        for (int i = 126; i >= 0; --i)
-        {
-            if (noteFreq[i] <= frequency)
-            {
-                return i + 1;
+    inline uint8_t getNoteNameIndexFromFreq(float freq) {
+        // 指定した周波数に最も近い12平均律ノートのインデックスを返す関数
+        int nearestIndex = 0;
+        float minDiff = fabs(noteFreq[0] - freq);
+        for (int i = 1; i < sizeof(noteFreq)/sizeof(noteFreq[0]); ++i) {
+            float diff = fabs(noteFreq[i] - freq);
+            if (diff < minDiff) {
+                minDiff = diff;
+                nearestIndex = i;
             }
         }
-
-        return 0;
+        return nearestIndex;
     }
 
     bool setNoteNameFromFrequency(float frequency)
     {
-        uint8_t noteNameIndex = 0;
-        for (int i = 126; i >= 0; --i)
-        {
-            if (noteFreq[i] <= frequency)
-            {
-                noteNameIndex = i + 1;
-                break;
-            }
-        }
+        uint8_t noteNameIndex = getNoteNameIndexFromFreq(frequency);
         bool result = _coarseNoteNameIndex != noteNameIndex;
         _coarseNoteNameIndex = noteNameIndex;
         return result;

@@ -10,7 +10,7 @@
 #include "hardware/pwm.h"  // PWMの制御用ヘッダー
 
 // OUT_A/Bとは違うPWMチャンネルのPWM割り込みにすること
-uint initPWMIntr(uint gpio, irq_handler_t handler, uint *pSlice, uint32_t sampleFreq, uint16_t wrap = 512, float cpuClock = 133000000.0)
+uint initPWMIntr(uint gpio, irq_handler_t handler, uint *pSlice, float sampleFreq, uint16_t wrap = 512, float cpuClock = 133000000.0)
 {
     gpio_set_function(gpio, GPIO_FUNC_PWM);
     uint slice = pwm_gpio_to_slice_num(gpio);
@@ -23,7 +23,7 @@ uint initPWMIntr(uint gpio, irq_handler_t handler, uint *pSlice, uint32_t sample
 
     // 割り込み頻度
     pwm_set_wrap(slice, wrap - 1);
-    pwm_set_clkdiv(slice, cpuClock / ((float)wrap * (float)sampleFreq));
+    pwm_set_clkdiv(slice, cpuClock / ((float)wrap * sampleFreq));
     pwm_set_enabled(slice, true);
     return slice;
 }

@@ -23,7 +23,8 @@
 #include "EepromData.h"
 
 #define PWM_RESO 2048 // 11bit
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
+// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8.0) // 32470.703125khz
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4.0) // 65khz
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -44,7 +45,7 @@ static bool saveConfirm = false;
 
 // VCO
 #define VCO_MAX_ROOT_INDEX 96 // noteNameのC7
-#define EXP_CURVE(value, ratio) (exp((value * (ratio / (ADC_RESO - 1)))) - 1) / (exp(ratio) - 1)
+// #define EXP_CURVE(value, ratio) (exp((value * (ratio / (ADC_RESO - 1)))) - 1) / (exp(ratio) - 1)
 #define OSCILLATOR_MAX 4
 static Oscillator osc[OSCILLATOR_MAX];
 static int8_t arpStep = 0;
@@ -395,7 +396,7 @@ void loop()
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }
 
-    sleep_us(100); // 10kHz
+    sleep_us(250); // 4kHz
 }
 
 void setup1()
@@ -412,9 +413,9 @@ void loop1()
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
-    uint16_t voct = vOct.getValue();
-    int16_t cv1Value = cv1.getValue();
-    int16_t cv2Value = cv2.getValue();
+    // uint16_t voct = vOct.getValue();
+    // int16_t cv1Value = cv1.getValue();
+    // int16_t cv2Value = cv2.getValue();
 
     static uint16_t lastPotValue = potValue;
     static uint8_t unlock = 0;

@@ -226,10 +226,7 @@ public:
     bool setCourceFromNoteNameIndex(int8_t value)
     {
         bool result = _coarseNoteNameIndex != value;
-        if (value < 0)
-        {
-            value = 0;
-        }
+        value = constrain(value, 0, 127);
         _coarseNoteNameIndex = value;
         _coarse = noteFreq[value];
         return result;

@@ -24,7 +24,8 @@
 #include "../../commonlib/common/StateVariableFilter.hpp"
 
 #define PWM_RESO 2048 // 11bit
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8.0) // 32470.703125khz
+// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4.0) // 65khz
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -228,10 +229,10 @@ void interruptPWM()
     pwm_set_gpio_level(OUT1, valueA);
     pwm_set_gpio_level(OUT2, valueB);
     pwm_set_gpio_level(OUT3, valueC);
-    // pwm_set_gpio_level(OUT4, osc[2].getRandom16(2048));
+    pwm_set_gpio_level(OUT4, osc[2].getRandom16(2048));
 
-    // uint16_t cr88Value = cr88.process();
-    // pwm_set_gpio_level(OUT6, cr88Value);
+    uint16_t cr88Value = cr88.process();
+    pwm_set_gpio_level(OUT6, cr88Value);
 }
 
 void setup()

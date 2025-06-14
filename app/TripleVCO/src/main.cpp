@@ -109,10 +109,10 @@ void drawOSC(uint8_t oscIndex, uint8_t rangeMode)
     u8g2.setFont(u8g2_font_7x14B_tf);
     if (oscIndex == 2)
     {
-        sprintf(disp_buf, "%s", modeDisp[rangeMode]);
+        sprintf(disp_buf, "%s", modeDisp[1]);
         u8g2.drawStr(0, 0, disp_buf);
-        // sprintf(disp_buf, "%s", osc[oscIndex].getNoteNameOrFreq(rangeMode));
-        // u8g2.drawStr(0, 48, disp_buf);
+        sprintf(disp_buf, "%s", osc[oscIndex].getNoteNameOrFreq(1));
+        u8g2.drawStr(0, 48, disp_buf);
         u8g2.setFont(u8g2_font_logisoso26_tf);
         sprintf(disp_buf, "%s", osc[oscIndex].getWaveName());
         u8g2.drawStr(0, 16, disp_buf);
@@ -276,7 +276,7 @@ void setup()
     osc[2].setWave((Oscillator::Wave)userConfig.oscCWave);
     osc[2].setFrequency(userConfig.oscCCoarse);
     osc[2].setFreqName(userConfig.oscCCoarse);
-    osc[2].setPhaseShift(5);
+    osc[2].setPhaseShift(0);
 
     // svf.init(PWM_RESO, false);
     // svf.setParameter(0.7, 0.8);
@@ -322,7 +322,7 @@ void loop()
     float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
     float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
 
-    float freqencyA = max(userConfig.oscACoarse * powVOct, 0.01);
+    float freqencyA = max(userConfig.oscACoarse * powVOct, 0.002);
     float selVoctB = 1;
     if (userConfig.oscBVOct == 1)
         selVoctB = powVOct;
@@ -330,7 +330,7 @@ void loop()
         selVoctB = powCv1;
     else if (userConfig.oscBVOct == 3)
         selVoctB = powCv2;
-    float freqencyB = max(userConfig.oscBCoarse * selVoctB, 0.01);
+    float freqencyB = max(userConfig.oscBCoarse * selVoctB, 0.002);
 
     float selVoctC = 1;
     if (userConfig.oscCVOct == 1)
@@ -339,7 +339,7 @@ void loop()
         selVoctC = powCv1;
     else if (userConfig.oscCVOct == 3)
         selVoctC = powCv2;
-    float freqencyC = max(userConfig.oscCCoarse * selVoctC, 0.01);
+    float freqencyC = max(userConfig.oscCCoarse * selVoctC, 0.002);
 
     osc[0].setFrequency(freqencyA);
     osc[1].setFrequency(freqencyB);
@@ -501,6 +501,7 @@ void loop1()
             requiresUpdate |= osc[0].setWave((Oscillator::Wave)
                                                  constrainCyclic((int)osc[0].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
             userConfig.oscAWave = osc[0].getWave();
+            pwm_set_gpio_level(LED1, 0);
         }
         else if (btn0 == 3)
         {
@@ -517,6 +518,8 @@ void loop1()
                 requiresUpdate |= userConfig.oscAFolding != osc[0].getFolding();
                 userConfig.oscAFolding = osc[0].getFolding();
             }
+
+            pwm_set_gpio_level(LED1, PWM_RESO -1);
         }
         break;
     case 1:
@@ -541,6 +544,7 @@ void loop1()
             requiresUpdate |= osc[1].setWave((Oscillator::Wave)
                                                  constrainCyclic((int)osc[1].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
             userConfig.oscBWave = osc[1].getWave();
+            pwm_set_gpio_level(LED1, 0);
         }
         else if (btn0 == 3)
         {
@@ -557,12 +561,16 @@ void loop1()
                 requiresUpdate |= userConfig.oscBFolding != osc[1].getFolding();
                 userConfig.oscBFolding = osc[1].getFolding();
             }
+
+            pwm_set_gpio_level(LED1, PWM_RESO -1);
         }
         break;
     case 2:
         if (unlock)
         {
             userConfig.oscCCoarse = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
+            requiresUpdate |= osc[2].setNoteNameFromFrequency(userConfig.oscCCoarse);
+            requiresUpdate |= osc[2].setFreqName(userConfig.oscCCoarse);
         }
         // OLED描画更新でノイズが乗るので必要時以外更新しない
         requiresUpdate |= osc[2].setWave((Oscillator::Wave)

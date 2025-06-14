@@ -19,21 +19,21 @@ void initEEPROM()
 }
 
 // 設定値系
-const static char *UI_VER = "svco_conf_003\0";
+const static char *UI_VER = "svco_conf_004\0";
 struct UserConfig
 {
     char ver[15];
     int16_t voctTune;
     int16_t oscAWave;
-    int16_t oscACoarse;
+    float oscACoarse;
     int16_t oscAPhaseShift;
     int16_t oscAFolding;
     int16_t oscBWave;
-    int16_t oscBCoarse;
+    float oscBCoarse;
     int16_t oscBPhaseShift;
     int16_t oscBFolding;
     int16_t oscCWave;
-    int16_t oscCCoarse;
+    float oscCCoarse;
     int16_t oscCPhaseShift;
     int16_t oscCFolding;
     int16_t rangeMode;

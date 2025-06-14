@@ -273,7 +273,7 @@ public:
     {
         if (freqName)
         {
-            sprintf(_freqName, "%5.1f", _coarse);
+            sprintf(_freqName, "%6.2f", _coarse);
             return _freqName;
         }
 

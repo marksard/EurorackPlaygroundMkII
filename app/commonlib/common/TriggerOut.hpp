@@ -33,16 +33,39 @@ public:
     /// @param status 
     inline void update(int status)
     {
+        // if (_status == 0 && status != 0)
+        // {
+        //     _status = 1;
+        //     _lastMillis = millis();
+        //     writePin(_status);
+        // }
+        // else if (_status == 1 && (millis() - _lastMillis) > _duration)
+        // {
+        //     _status = 0;
+        //     writePin(_status);
+        // }
+
         if (_status == 0 && status != 0)
         {
             _status = 1;
             _lastMillis = millis();
-            writePin(_status);
+            writePin(1);
         }
-        else if (_status == 1 && (millis() - _lastMillis) > _duration)
+        else if (_status == 1)
         {
-            _status = 0;
-            writePin(_status);
+            if ((millis() - _lastMillis) > _duration)
+            {
+                _status = 2;
+                writePin(0);
+            }
+        }
+        else if (_status == 2)
+        {
+            if (status == 0)
+            {
+                _status = 0;
+                writePin(0);
+            }
         }
     }
 
@@ -54,7 +77,7 @@ public:
         // Serial.print(status);
         // Serial.print(",");
         // Serial.println();
-        if (!triggerMode)
+        if (triggerMode == 0)
         {
             return status;
         }

@@ -8,7 +8,7 @@
 #pragma once
 
 #define RE_DELTA_THRESHOLD_COUNT 5
-static const uint16_t _thresholds[RE_DELTA_THRESHOLD_COUNT] = {1000, 5000, 10000, 20000, 40000};
+static const uint16_t _thresholds[RE_DELTA_THRESHOLD_COUNT] = {6000, 12000, 24000, 32000, 64000};
 static const byte _deltas[RE_DELTA_THRESHOLD_COUNT] = {12, 6, 3, 2, 1};
 
 class RotaryEncoder
@@ -23,7 +23,7 @@ public:
     /// @brief ピン設定
     /// @param pin1
     /// @param pin2
-    void init(int pin1, int pin2, bool holdMode = false)
+    void init(int pin1, int pin2, bool lastValueHold = false)
     {
         _pin1 = pin1;
         _pin2 = pin2;
@@ -31,11 +31,12 @@ public:
         pinMode(pin1, INPUT_PULLUP);
         pinMode(pin2, INPUT_PULLUP);
 
-        // _timePrev = micros();
         _timePrev = 0;
-        _timeCurrent = _timePrev;
-        _holdMode = holdMode;
+        _timeCurrent = 0;
+        _timePrevAcc = 0;
+        _timeCurrentAcc = 0;
         _value = 0;
+        _lastValueHold = lastValueHold;
 
         getDirection(); // 空読みして値をいれておく
     }
@@ -44,31 +45,30 @@ public:
     /// @return 0:none plus:clockwise minus:counter clockwise
     int8_t getDirection(bool accelerate = false)
     {
-        static byte stateHistory[4] = {0}; // 状態履歴を保持
-        static byte historyIndex = 0;     // 履歴のインデックス
-
         // オーバーフローを考慮した時間差の計算
         if ((micros() - _timePrev) < 500)
         {
-            if (!_holdMode)
+            if (_lastValueHold == false)
                 _value = 0;
 
             return _value;
         }
+        _timePrev = _timeCurrent;
+        _timeCurrent = micros();
 
         byte value1, value2;
         getPinValue(&value1, &value2);
         byte state = value1 | (value2 << 1);
 
         // 状態履歴を更新
-        stateHistory[historyIndex] = state;
-        historyIndex = (historyIndex + 1) % 4;
+        _stateHistory[_historyIndex] = state;
+        _historyIndex = (_historyIndex + 1) % _histCount;
 
         // 状態履歴がすべて同じ場合のみ処理を進める
         bool stable = true;
-        for (byte i = 1; i < 4; ++i)
+        for (byte i = 1; i < _histCount; ++i)
         {
-            if (stateHistory[i] != stateHistory[0])
+            if (_stateHistory[i] != _stateHistory[0])
             {
                 stable = false;
                 break;
@@ -81,29 +81,40 @@ public:
         }
 
         _index = (_index << 2) + (state & 3);
-        _index &= 15;
-
+        _index &= 0xf;
+        byte direction = 0;
         switch (_index)
         {
         case 0xd:
-            _timePrev = _timeCurrent;
-            _timeCurrent = micros();
+            _timePrevAcc = _timeCurrentAcc;
+            _timeCurrentAcc = _timeCurrent;
             _index = 0;
-            _value = accelerate ? getDelta() : 1;
+            direction = accelerate ? getDelta() : 1;
+            // バックラッシュ対策
+            if (_value >= 0)
+            {
+                _value = direction;
+            }
             break;
         case 0x7:
-            _timePrev = _timeCurrent;
-            _timeCurrent = micros();
+            _timePrevAcc = _timeCurrentAcc;
+            _timeCurrentAcc = _timeCurrent;
             _index = 0;
-            _value = accelerate ? getDelta() * -1 : -1;
+            direction = accelerate ? getDelta() * -1 : -1;
+            // バックラッシュ対策
+            if (_value <= 0)
+            {
+                _value = direction;
+            }
             break;
         default:
-            if (!accelerate)
+            // 加速度検出ありのときは入力区間を計測したいので未入力時はなにもしない
+            if (accelerate == false)
             {
-                _timePrev = _timeCurrent;
-                _timeCurrent = micros();
+                _timePrevAcc = _timeCurrentAcc;
+                _timeCurrentAcc = _timeCurrent;
             }
-            if (!_holdMode)
+            if (_lastValueHold == false)
             {
                 _value = 0;
             }
@@ -115,7 +126,7 @@ public:
 
     ulong lastRotationTime()
     {
-        return _timeCurrent - _timePrev;
+        return _timeCurrentAcc - _timePrevAcc;
     }
 
     byte getDelta()
@@ -134,7 +145,8 @@ public:
     byte getValue()
     {
         byte result = _value;
-        if (_holdMode)
+        // _lastValueHold true時、getValueで使用したら値を破棄する
+        if (_lastValueHold == true)
             _value = 0;
         return result;
     }
@@ -145,8 +157,14 @@ protected:
     byte _index;
     ulong _timePrev;
     ulong _timeCurrent;
+    ulong _timePrevAcc;
+    ulong _timeCurrentAcc;
     byte _value;
-    bool _holdMode;
+    bool _lastValueHold;
+
+    constexpr static byte _histCount = 4;
+    byte _stateHistory[_histCount] = {0}; // 状態履歴を保持
+    byte _historyIndex = 0;     // 履歴のインデックス
 
     virtual void getPinValue(byte *pValue1, byte *pValue2)
     {

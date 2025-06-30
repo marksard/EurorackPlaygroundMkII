@@ -314,7 +314,7 @@ public:
     
             // 基音(C0) + 音階はスケールに従いつつランダムで + オクターブ上下移動をランダムで(-1 or 0 ~ 2 * 12)
             // 0 ~ 24 + スケール音
-            setOctave(i, 1 + (this->rand(octUnder, octUpper)));
+            setOctave(i, (this->rand(octUnder, octUpper)));
             setKey(i, this->rand(MAX_SCALE_KEY));
             setAcc(i, gate != StepSeqModel::Gate::_ && this->rand(0, 6) == 1 ? 1 : 0);
         }
@@ -327,7 +327,7 @@ public:
         for (byte i = 0; i < StepSeqModel::MAX_STEP; ++i)
         {
             setGate(i, (StepSeqModel::Gate)gateInitial);
-            setOctave(i, 1);
+            setOctave(i, 0);
             setKey(i, 0);
             setAcc(i, 0);
          }

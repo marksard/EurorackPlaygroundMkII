@@ -75,8 +75,8 @@ SettingItem16 commonSettings[] =
 
 SettingItem16 sequenceSettings[] =
 {
-    SettingItem16(-1, 4, 1, &userConfig.octUnder, "OCT UNDER: %d", NULL, 0),
-    SettingItem16(-1, 4, 1, &userConfig.octUpper, "OCT UPPER: %d", NULL, 0),
+    SettingItem16(0, 5, 1, &userConfig.octUnder, "OCT UNDER: %d", NULL, 0),
+    SettingItem16(0, 5, 1, &userConfig.octUpper, "OCT UPPER: %d", NULL, 0),
     SettingItem16(0, StepSeqModel::Gate::Max -1, 1, &userConfig.gateMin, "GATE MIN: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
     SettingItem16(1, StepSeqModel::Gate::Max -1, 1, &userConfig.gateMax, "GATE MAX: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
     SettingItem16(0, StepSeqModel::Gate::Max -1, 1, &userConfig.gateInitial, "GATE INI: %s", StepSeqModel::GateDisp, StepSeqModel::Gate::Max),
@@ -338,6 +338,7 @@ void loop()
     // Serial.print(cv2Value);
     // Serial.println();
 
+    tight_loop_contents();
     sleep_us(100);
 }
 
@@ -524,6 +525,7 @@ void loop1()
 
     if (!updateOLED.ready())
     {
+        tight_loop_contents();
         sleep_ms(1);
         return;
     }

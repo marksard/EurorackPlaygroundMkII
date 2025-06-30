@@ -259,10 +259,10 @@ void setup()
 
     pot.init(POT1);
     enc.init(EC1A, EC1B, true);
-    buttons[0].init(BTN1, false);
-    buttons[1].init(BTN2, false);
+    buttons[0].init(BTN1);
+    buttons[1].init(BTN2);
     buttons[1].setHoldTime(5);
-    buttons[2].init(BTN3, false);
+    buttons[2].init(BTN3);
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);
@@ -394,6 +394,7 @@ void loop()
     //     // agc.print();
     // }
 
+    tight_loop_contents();
     sleep_us(100);
 }
 
@@ -501,6 +502,7 @@ void loop1()
 
     if (!updateOLED.ready())
     {
+        tight_loop_contents();
         // sleep_ms(1);
         return;
     }

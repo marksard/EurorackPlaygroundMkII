@@ -307,7 +307,7 @@ void setup()
 
 void loop()
 {
-    pot.analogRead(true);
+    pot.analogRead(false);
     enc.getDirection();
     int16_t voct = vOct.analogReadDirectFast();
     int16_t cv1Value = cv1.analogReadDirectFast();
@@ -408,7 +408,8 @@ void loop()
     //     Serial.println();
     // }
 
-    sleep_us(100); // 20kHz
+    // sleep_us(20); // 10kHz
+    tight_loop_contents();
 }
 
 void setup1()
@@ -425,6 +426,8 @@ void loop1()
     uint8_t btn0 = buttons[0].getState();
     uint8_t btn1 = buttons[1].getState();
     uint8_t btn2 = buttons[2].getState();
+    int16_t cv1Value = cv1.getValue();
+    int16_t cv2Value = cv2.getValue();
 
     static uint16_t lastPotValue = potValue;
     static uint8_t unlock = 0;
@@ -501,7 +504,6 @@ void loop1()
             requiresUpdate |= osc[0].setWave((Oscillator::Wave)
                                                  constrainCyclic((int)osc[0].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
             userConfig.oscAWave = osc[0].getWave();
-            pwm_set_gpio_level(LED1, 0);
         }
         else if (btn0 == 3)
         {
@@ -518,8 +520,6 @@ void loop1()
                 requiresUpdate |= userConfig.oscAFolding != osc[0].getFolding();
                 userConfig.oscAFolding = osc[0].getFolding();
             }
-
-            pwm_set_gpio_level(LED1, PWM_RESO -1);
         }
         break;
     case 1:
@@ -544,7 +544,6 @@ void loop1()
             requiresUpdate |= osc[1].setWave((Oscillator::Wave)
                                                  constrainCyclic((int)osc[1].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
             userConfig.oscBWave = osc[1].getWave();
-            pwm_set_gpio_level(LED1, 0);
         }
         else if (btn0 == 3)
         {
@@ -561,8 +560,6 @@ void loop1()
                 requiresUpdate |= userConfig.oscBFolding != osc[1].getFolding();
                 userConfig.oscBFolding = osc[1].getFolding();
             }
-
-            pwm_set_gpio_level(LED1, PWM_RESO -1);
         }
         break;
     case 2:
@@ -580,6 +577,15 @@ void loop1()
     default:
         requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
         break;
+    }
+
+    if (menuIndex < 2 && btn0 == 3)
+    {
+        pwm_set_gpio_level(LED1, btn0 == 3 ? PWM_RESO - 1 : 0);
+    }
+    else {
+        pwm_set_gpio_level(LED1, cv1Value > 4090 ? PWM_RESO - 1 : 0);
+        pwm_set_gpio_level(LED2, cv2Value > 4090 ? PWM_RESO - 1 : 0);
     }
 
     // ec長押しで設定保存
@@ -605,7 +611,8 @@ void loop1()
 
     if (!updateOLED.ready())
     {
-        sleep_ms(1);
+        tight_loop_contents();
+        // sleep_ms(1);
         return;
     }
 

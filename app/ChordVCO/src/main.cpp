@@ -28,6 +28,9 @@
 #include "../../common/MultiWaveOscEx.hpp"
 #include "UserConfig.h"
 
+#undef SAMPLE_FREQ
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
+
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -41,7 +44,7 @@ static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 static int pwmOuts[] = {OUT1, OUT2, OUT3, OUT4, OUT5, OUT6};
 static uint8_t pwmOutsCount = sizeof(pwmOuts) / sizeof(pwmOuts[0]);
-static ADCErrorCorrection adcErrorCorrection;
+static ADCErrorCorrection adcErrorCorrection(3.3f);
 
 // ユーザー設定
 static EEPROMConfigIO<UserConfig> userConfig(0); 
@@ -57,6 +60,7 @@ static Quantizer quantizer(PWM_RESO);
 static ActiveGainControl agc;
 static uint16_t bias = PWM_RESO >> 1;
 static RandomFast randFast;
+static const float voctIndexRatio = 60.0f / (float)(ADC_RESO - 1);
 
 // コードを構成する音の12音階上での位置
 static uint8_t addRootScale[][7][OSCILLATOR_MAX] =
@@ -296,7 +300,7 @@ void setup()
     }
     pwm_set_mask_enabled(slice);
 
-    adcErrorCorrection.init(3.29f, 22.0f);
+    adcErrorCorrection.init(3.295f, 25.0f);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }
@@ -311,53 +315,16 @@ void loop()
 
     agc.update(3);
 
-    float powVOct = adcErrorCorrection.voctPow(voct);
+    static int16_t voctIndex = 0;
+    int16_t tempVoctIndex = (int16_t)(adcErrorCorrection.correctedAdc(voct) * voctIndexRatio + 0.5f);
 
-    static uint8_t rootIndex = 0;
-    float freq = osc[0].getCource() * powVOct;
-    uint8_t lastRootIndex = osc[0].getNoteNameIndexFromFreq(freq);
-    
-    // static uint8_t dispCount = 0;
-    // dispCount++;
-    // if (dispCount == 0)
-    // {
-    //     Serial.print(" voct:");
-    //     Serial.print(voct);
-    //     Serial.print(" freq:");
-    //     Serial.print(freq);
-    //     Serial.print(" rootIndex: ");
-    //     Serial.print(rootIndex);
-    //     Serial.println();
-    // }
-    
-    // static uint8_t rootConfirmCount = 0;
-    if (lastRootIndex != rootIndex)
+    if (tempVoctIndex != voctIndex)
     {
-        // rootConfirmCount++;
-        // if (rootConfirmCount >= 4)
-        {
-            arpStep = 0;
-            rootIndex = lastRootIndex;
-            // rootConfirmCount = 0;
-
-            // Serial.print(" voct:");
-            // Serial.print(voct);
-            // Serial.print(" freq: ");
-            // Serial.print(freq);
-            // Serial.print(" rootIndex: ");
-            // Serial.print(rootIndex);
-            // Serial.print(", ");
-            // Serial.print("lastRootIndex: ");
-            // Serial.print(lastRootIndex);
-            // Serial.println();
-        }
+        arpStep = 0;
+        voctIndex = tempVoctIndex;
     }
-    // else
-    // {
-    //     rootConfirmCount = 0;
-    // }
 
-    uint8_t rootDiff = (rootIndex - userConfig.Config.oscACoarseIndex) % 12;
+    uint8_t rootDiff = (userConfig.Config.oscACoarseIndex + (int)voctIndex) % 12;
     uint8_t scaleIndex = rootScaleIndexFromSemitone[userConfig.Config.scale][rootDiff];
     int8_t rootMinus = userConfig.Config.rootMinus * -12;
     int8_t seventhMinus = userConfig.Config.seventhMinus * 12;
@@ -377,10 +344,10 @@ void loop()
 
     if (userConfig.Config.voctHold == 0 || (userConfig.Config.voctHold == 1 && gate.getValue()))
     {
-        osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.Config.scale][scaleIndex][0] + rootMinus);
-        osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.Config.scale][scaleIndex][1]);
-        osc[2].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.Config.scale][scaleIndex][2]);
-        osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.Config.scale][scaleIndex][3] + seventhMinus);
+        osc[0].setFreqFromNoteIndex(userConfig.Config.oscACoarseIndex + voctIndex + addRootScale[userConfig.Config.scale][scaleIndex][0] + rootMinus);
+        osc[1].setFreqFromNoteIndex(userConfig.Config.oscACoarseIndex + voctIndex + addRootScale[userConfig.Config.scale][scaleIndex][1]);
+        osc[2].setFreqFromNoteIndex(userConfig.Config.oscACoarseIndex + voctIndex + addRootScale[userConfig.Config.scale][scaleIndex][2]);
+        osc[3].setFreqFromNoteIndex(userConfig.Config.oscACoarseIndex + voctIndex + addRootScale[userConfig.Config.scale][scaleIndex][3] + seventhMinus);
     }
 
     if (userConfig.Config.quantizeHold == 0 || (userConfig.Config.quantizeHold == 1 && gate.getValue()))
@@ -401,7 +368,7 @@ void loop()
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }
 
-    sleep_us(100);
+    sleep_us(250);
 }
 
 void setup1()

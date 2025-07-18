@@ -40,23 +40,9 @@ public:
 
     float getCource() { return _coarse; }
 
-    inline uint8_t getNoteNameIndexFromFreq(float freq) {
-        // 指定した周波数に最も近い12平均律ノートのインデックスを返す関数
-        int nearestIndex = 0;
-        float minDiff = fabs(noteFreq[0] - freq);
-        for (int i = 1; i < sizeof(noteFreq)/sizeof(noteFreq[0]); ++i) {
-            float diff = fabs(noteFreq[i] - freq);
-            if (diff < minDiff) {
-                minDiff = diff;
-                nearestIndex = i;
-            }
-        }
-        return nearestIndex;
-    }
-
     bool setNoteNameFromFrequency(float frequency)
     {
-        uint8_t noteNameIndex = getNoteNameIndexFromFreq(frequency);
+        uint8_t noteNameIndex = getNoteNameFromFreq(frequency);
         bool result = _coarseNoteNameIndex != noteNameIndex;
         _coarseNoteNameIndex = noteNameIndex;
         return result;

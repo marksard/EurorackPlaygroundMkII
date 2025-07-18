@@ -44,6 +44,16 @@ public:
             _correctedAdc[i] = 0;
             // _voct[i] = 0.0f;
         }
+
+        // デフォルト3.26989Vだと意図的に3.3Vから1%近く下げててINLへ与える影響があるため差分を補完
+        _inlRatio = 1.0f - (_adc_input_max / 3.3f);
+    }
+
+    ADCErrorCorrection(float adc_input_max)
+    : _adc_input_max(adc_input_max)
+    , _scale(_input_max / adc_input_max)
+    {
+        ADCErrorCorrection();
     }
 
     void init(float vref = 0.0f, float noiseFloor = 0.0f)
@@ -77,27 +87,28 @@ public:
     // INL生成
     void generateINL(float noiseFloor = 0.0f)
     {
+        // Serial.print(" _inlRatio:");
+        // Serial.println(_inlRatio, 6);
         _noiseFloor = noiseFloor;
         // DNLスパイク箇所（例：+8.9 LSB）、その累積によるINL
         const int spikes[] = {512, 1536, 2560, 3584};
         // 初期値として実機計測値に近似する値で初期化
         for (int i = 0; i < 4096; ++i)
         {
-            // 0.01下がりはRP2040マニュアルのDNLの下がり具合から
-            // zero互換機は20程度持ち上がっているので計測でノイズがある場合は一律下げる
+            // 計測でノイズがある場合は一律下げる
             if (noiseFloor > 0.0f)
             {
                 // 最後は除いて初期値をいれてく
                 if (i < 4095)
                 {
-                    _INL[i] = (-0.01f * i) - noiseFloor;
+                    _INL[i] = (-_inlRatio * i) - noiseFloor;
                 }
             }
             else
             {
                 if (i < 4095)
                 {
-                    _INL[i] = (-0.01f * i);
+                    _INL[i] = (-_inlRatio * i);
                 }
             }
         }
@@ -213,4 +224,5 @@ protected:
     // 0.1%精密抵抗分圧によるADCへの最大入力電圧
     const float _adc_input_max = 189000.0f / (100000.0f + 189000.0f) * _input_max; 
     const float _scale = _input_max / _adc_input_max;
+    float _inlRatio;
 };

@@ -36,6 +36,7 @@ static SmoothAnalogRead vOct;
 static EdgeChecker gate;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
+static ADCErrorCorrection adcErrorCorrection(3.3f);
 
 //////////////////////////////////////////
 // entries
@@ -217,9 +218,55 @@ void setup()
     initPWM(OUT5, PWM_RESO);
     initPWM(OUT6, PWM_RESO);
 
-    initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 
-    oscillo.init(&u8g2, 0);
+    // ///////////////////////
+    // while (!Serial)
+    // {
+    // }
+    // delay(500);
+
+    // /////////
+    // float noiseFloor = adcErrorCorrection.getADCAvg16(VOCT);
+    // adcErrorCorrection.generateINL(noiseFloor);
+    // pwm_set_gpio_level(OUT3, 2047);
+    // sleep_ms(1000);
+    // uint16_t adc = adcErrorCorrection.getADCAvg16(VOCT);
+    // float vref = adcErrorCorrection.getADC2VRef(adc);
+    // float vspecRef = adcErrorCorrection.getSpeculationVRef();
+    // adcErrorCorrection.generateLUT(vref);
+    // Serial.print(" noiseFloor:");
+    // Serial.print(noiseFloor);
+    // Serial.print(" adc:");
+    // Serial.print(adc);
+    // Serial.print(" vref:");
+    // Serial.print(vref, 4);
+    // Serial.print(" sim vref:");
+    // Serial.print(vspecRef, 4);
+    // Serial.println();
+
+    // ///////// raw adc input
+    // Serial.println("out,raw_adc,raw_diff,cor_adc,cor_diff");
+    // for (int i = 0; i < PWM_RESO; ++i)
+    // {
+    //     pwm_set_gpio_level(OUT3, i);
+    //     sleep_ms(1);
+    //     int16_t adc = adcErrorCorrection.getADCAvg16(VOCT);
+    //     int16_t diff = (i * 2) - adc;
+    //     Serial.print(i * 2);
+    //     Serial.print(",");
+    //     Serial.print(adc);
+    //     Serial.print(",");
+    //     Serial.print(diff);
+    //     adc = (int)adcErrorCorrection.correctedAdc(adc);
+    //     diff = (i * 2) - adc;
+    //     Serial.print(",");
+    //     Serial.print(adc);
+    //     Serial.print(",");
+    //     Serial.print(diff);
+    //     Serial.println();
+    // }
+
+    initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }
 
 void loop()
@@ -290,6 +337,8 @@ void loop()
 
 void setup1()
 {
+    oscillo.init(&u8g2, 0);
+
     initOLED();
     updateOLED.setMills(33);
     updateOLED.start();

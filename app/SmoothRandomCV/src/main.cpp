@@ -8,25 +8,25 @@
 #include <Arduino.h>
 #include <hardware/pwm.h>
 #include <U8g2lib.h>
-#include "../../commonlib/common/Button.hpp"
-#include "../../commonlib/common/SmoothAnalogRead.hpp"
-#include "../../commonlib/common/RotaryEncoder.hpp"
-#include "../../commonlib/common/EdgeChecker.hpp"
-#include "../../commonlib/common/PollingTimeEvent.hpp"
-#include "../../commonlib/common/TriggerOut.hpp"
-#include "../../commonlib/ui_common/SettingItem.hpp"
-#include "../../commonlib/common/epmkii_gpio.h"
-#include "../../commonlib/common/pwm_wrapper.h"
-#include "../../commonlib/common/RandomFast.hpp"
-#include "SmoothRandomCV.hpp"
-#include "Oscillator.hpp"
+#include <EEPROM.h>
+#include "../../common/lib/Button.hpp"
+#include "../../common/lib/SmoothAnalogRead.hpp"
+#include "../../common/lib/RotaryEncoder.hpp"
+#include "../../common/lib/ADCErrorCorrection.hpp"
+#include "../../common/lib/EepRomConfigIO.hpp"
+#include "../../common/ui_common/SettingItem.hpp"
+#include "../../common/lib/pwm_wrapper.h"
+#include "../../common/gpio_mapping.h"
+#include "../../common/basic_definition.h"
 
-#define CPU_CLOCK 133000000.0
-#define INTR_PWM_RESO 512
-#define PWM_RESO 4096         // 12bit
-#define DAC_MAX_MILLVOLT 5000 // mV
-#define ADC_RESO 4096
-#define SAMPLE_FREQ 44100
+#include "../../common/lib/PollingTimeEvent.hpp"
+#include "../../common/lib/TriggerOut.hpp"
+#include "../../common/lib/EdgeChecker.hpp"
+#include "../../common/lib/RandomFast.hpp"
+
+#include "../../common/MultiWaveOscEx.hpp"
+#include "../../common/SmoothRandomCV.hpp"
+
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -52,10 +52,10 @@ static float maxMultiply = 3;
 // static int16_t clockPPQ = 4;
 static uint8_t selReso[] = { 4, 8, 12, 16 };
 
-static Oscillator lfo;
+static MultiWaveOscEx lfo;
 static EdgeChecker clockEdge;
 static PollingTimeEvent pollingEvent;
-static SmoothRandomCV smoothRand(ADC_RESO);
+static SmoothRandomCV smoothRand(PWM_RESO);
 static TriggerOut rndMultiplyOut;
 static RandomFast randFast;
 //////////////////////////////////////////
@@ -74,7 +74,7 @@ SettingItemF rndSettings[] =
     SettingItemF(0.0, 1.0, 1.0, &clockMode, "CLK Mode: %s", triggerName, 2),
     SettingItemF(0.0, 100.0, 1.0, &level, "CV Level: %3.0f", NULL, 0),
     SettingItemF(1.0, 50.0, 1.0, &curve, "CV Curve: %3.0f", NULL, 0),
-    SettingItemF(0.0, (float)Oscillator::Wave::MAX, 1.0, &wave, "LFO Wav: %s", waveName, (int16_t)Oscillator::Wave::MAX + 1),
+    SettingItemF(0.0, (float)MultiWaveOscEx::Wave::MAX, 1.0, &wave, "LFO Wav: %s", waveName, (int16_t)MultiWaveOscEx::Wave::MAX + 1),
     SettingItemF(0.0, 20.0, 0.1, &minFreq, "LFO MinF:%3.1f", NULL, 0),
     SettingItemF(0.0, 20.0, 0.1, &maxFreq, "LFO MaxF:%3.1f", NULL, 0),
 };
@@ -134,7 +134,9 @@ void setup()
     // }
     // delay(500);
 
-    analogReadResolution(12);
+    analogReadResolution(ADC_BIT);
+    pinMode(23, OUTPUT);
+    gpio_put(23, HIGH);
 
     pot.init(POT1);
     enc.init(EC1A, EC1B);
@@ -161,7 +163,7 @@ void setup()
     // initPWM(OUT6, PWM_RESO);
 
     lfo.init(SAMPLE_FREQ);
-    lfo.setWave(Oscillator::Wave::SQU);
+    lfo.setWave(MultiWaveOscEx::Wave::SQU);
     lfo.setFreqName(100);
     lfo.setFrequency(100);
     lfo.setPhaseShift(0);
@@ -196,7 +198,7 @@ void loop()
     }
 
     requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
-    lfo.setWave((Oscillator::Wave)wave);
+    lfo.setWave((MultiWaveOscEx::Wave)wave);
 
     smoothRand.setCurve(curve);
     smoothRand.setMaxFreq(maxFreq);

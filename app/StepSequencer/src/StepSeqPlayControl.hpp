@@ -8,11 +8,11 @@
 #pragma once
 #include <Arduino.h>
 #include <U8g2lib.h>
-#include "../../commonlib/common/TriggerInterface.hpp"
-#include "../../commonlib/common/PollingTimeEvent.hpp"
-#include "../../commonlib/common/SyncInTrigger.hpp"
-#include "../../commonlib/common/TriggerOut.hpp"
-#include "../../commonlib/common/epmkii_basicconfig.h"
+#include "../../common/lib/TriggerInterface.hpp"
+#include "../../common/lib/PollingTimeEvent.hpp"
+#include "../../common/lib/SyncInTrigger.hpp"
+#include "../../common/lib/TriggerOut.hpp"
+#include "../../common/basic_definition.h"
 #include "StepSeqModel.hpp"
 #include "StepSeqView.hpp"
 

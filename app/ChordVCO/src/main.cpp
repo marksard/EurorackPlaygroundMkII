@@ -8,23 +8,26 @@
 #include <Arduino.h>
 #include <hardware/pwm.h>
 #include <U8g2lib.h>
-#include "../../commonlib/common/Button.hpp"
-#include "../../commonlib/common/SmoothAnalogRead.hpp"
-#include "../../commonlib/common/RotaryEncoder.hpp"
-#include "../../commonlib/common/EdgeChecker.hpp"
-#include "../../commonlib/common/PollingTimeEvent.hpp"
-#include "../../commonlib/common/ActiveGainControl.hpp"
-#include "../../commonlib/ui_common/SettingItem.hpp"
-#include "../../commonlib/common/epmkii_gpio.h"
-#include "../../commonlib/common/epmkii_basicconfig.h"
-#include "../../commonlib/common/pwm_wrapper.h"
-#include "../../commonlib/common/Quantizer.hpp"
-#include "Oscillator.hpp"
-#include "EepromData.h"
+#include <EEPROM.h>
+#include "../../common/lib/Button.hpp"
+#include "../../common/lib/SmoothAnalogRead.hpp"
+#include "../../common/lib/RotaryEncoder.hpp"
+#include "../../common/lib/ADCErrorCorrection.hpp"
+#include "../../common/lib/EepRomConfigIO.hpp"
+#include "../../common/ui_common/SettingItem.hpp"
+#include "../../common/lib/pwm_wrapper.h"
+#include "../../common/gpio_mapping.h"
+#include "../../common/basic_definition.h"
 
-#define PWM_RESO 2048 // 11bit
-// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8.0) // 32470.703125khz
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4.0) // 65khz
+#include "../../common/lib/PollingTimeEvent.hpp"
+#include "../../common/lib/EdgeChecker.hpp"
+#include "../../common/lib/RandomFast.hpp"
+#include "../../common/lib/Quantizer.hpp"
+#include "../../common/lib/ActiveGainControl.hpp"
+
+#include "../../common/MultiWaveOscEx.hpp"
+#include "UserConfig.h"
+
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -38,20 +41,22 @@ static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 static int pwmOuts[] = {OUT1, OUT2, OUT3, OUT4, OUT5, OUT6};
 static uint8_t pwmOutsCount = sizeof(pwmOuts) / sizeof(pwmOuts[0]);
+static ADCErrorCorrection adcErrorCorrection;
 
 // ユーザー設定
-static UserConfig userConfig;
+static EEPROMConfigIO<UserConfig> userConfig(0); 
 static bool saveConfirm = false;
 
 // VCO
 #define VCO_MAX_ROOT_INDEX 96 // noteNameのC7
 // #define EXP_CURVE(value, ratio) (exp((value * (ratio / (ADC_RESO - 1)))) - 1) / (exp(ratio) - 1)
 #define OSCILLATOR_MAX 4
-static Oscillator osc[OSCILLATOR_MAX];
+static MultiWaveOscEx osc[OSCILLATOR_MAX];
 static int8_t arpStep = 0;
 static Quantizer quantizer(PWM_RESO);
 static ActiveGainControl agc;
 static uint16_t bias = PWM_RESO >> 1;
+static RandomFast randFast;
 
 // コードを構成する音の12音階上での位置
 static uint8_t addRootScale[][7][OSCILLATOR_MAX] =
@@ -104,20 +109,20 @@ const char scales[][5] = {"MIN", "MAJ"};
 
 SettingItem16 commonSettings[] =
     {
-        SettingItem16(0, 2, 1, &userConfig.rootMinus, "ROOT: %s", selOct, 3),
-        SettingItem16(0, 2, 1, &userConfig.seventhMinus, "7TH: %s", selOct, 3),
-        SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "ParamCV: %s", selCV, 3),
-        SettingItem16(0, 3, 1, &userConfig.arpMode, "OUT2 ARP: %s", selArp, 4),
-        SettingItem16(0, 1, 1, &userConfig.voctHold, "HOLD MODE: %s", selHold, 2),
-        SettingItem16(0, 1, 1, &userConfig.scale, "SCALE: %s", scales, 2),
-        SettingItem16(-200, 200, 1, &userConfig.voctTune, "INIT VOCT:%4d", NULL, 0)};
+        SettingItem16(0, 2, 1, &userConfig.Config.rootMinus, "ROOT: %s", selOct, 3),
+        SettingItem16(0, 2, 1, &userConfig.Config.seventhMinus, "7TH: %s", selOct, 3),
+        SettingItem16(0, 2, 1, &userConfig.Config.oscAParaCV, "ParamCV: %s", selCV, 3),
+        SettingItem16(0, 3, 1, &userConfig.Config.arpMode, "OUT2 ARP: %s", selArp, 4),
+        SettingItem16(0, 1, 1, &userConfig.Config.voctHold, "HOLD MODE: %s", selHold, 2),
+        SettingItem16(0, 1, 1, &userConfig.Config.scale, "SCALE: %s", scales, 2),
+        SettingItem16(-200, 200, 1, &userConfig.Config.voctTune, "INIT VOCT:%4d", NULL, 0)};
 
 SettingItem16 quantizerSettings[] =
     {
-        SettingItem16(0, 2, 1, &userConfig.quantizeCV, "INPUT: %s", selCV, 3),
-        SettingItem16(0, quantizer.MaxScales, 1, &userConfig.quantizeScale, "SCALE: %s", quantizer.ScaleNames, quantizer.MaxScales),
-        SettingItem16(1, 5, 1, &userConfig.quantizeOct, "OCT:%2d", NULL, 0),
-        SettingItem16(0, 1, 1, &userConfig.quantizeHold, "HOLD MODE: %s", selHold, 2),
+        SettingItem16(0, 2, 1, &userConfig.Config.quantizeCV, "INPUT: %s", selCV, 3),
+        SettingItem16(0, quantizer.MaxScales, 1, &userConfig.Config.quantizeScale, "SCALE: %s", quantizer.ScaleNames, quantizer.MaxScales),
+        SettingItem16(1, 5, 1, &userConfig.Config.quantizeOct, "OCT:%2d", NULL, 0),
+        SettingItem16(0, 1, 1, &userConfig.Config.quantizeHold, "HOLD MODE: %s", selHold, 2),
 };
 
 static MenuSection16 menu[] = {
@@ -132,23 +137,23 @@ void drawOSC()
     static char disp_buf[33] = {0};
     u8g2.setFont(u8g2_font_7x14B_tf);
 
-    sprintf(disp_buf, "Chord VCO: %s", scales[userConfig.scale]);
+    sprintf(disp_buf, "Chord VCO: %s", scales[userConfig.Config.scale]);
     u8g2.drawStr(0, 0, disp_buf);
 
-    if (osc[0].getWave() == Oscillator::Wave::SAW || osc[0].getWave() == Oscillator::Wave::MUL_TRI)
+    if (osc[0].getWave() == MultiWaveOscEx::Wave::SAW || osc[0].getWave() == MultiWaveOscEx::Wave::MUL_TRI)
     {
-        if (userConfig.oscAParaCV > 0)
-            sprintf(disp_buf, "Root:%s Phase:cv%d", osc[0].getNoteName(), userConfig.oscAParaCV);
+        if (userConfig.Config.oscAParaCV > 0)
+            sprintf(disp_buf, "Root:%s Phs:cv%d", osc[0].getNoteName(), userConfig.Config.oscAParaCV);
         else
-            sprintf(disp_buf, "Root:%s Phase:%02d", osc[0].getNoteName(), osc[0].getPhaseShift());
+            sprintf(disp_buf, "Root:%s Phs:%02d", osc[0].getNoteName(), userConfig.Config.oscAPhaseShift);
     }
-    else if (osc[0].getWave() == Oscillator::Wave::TRI ||
-             osc[0].getWave() == Oscillator::Wave::SINE)
+    else if (osc[0].getWave() == MultiWaveOscEx::Wave::TRI ||
+             osc[0].getWave() == MultiWaveOscEx::Wave::SINE)
     {
-        if (userConfig.oscAParaCV > 0)
-            sprintf(disp_buf, "Root:%s Fold:cv%d", osc[0].getNoteName(), userConfig.oscAParaCV);
+        if (userConfig.Config.oscAParaCV > 0)
+            sprintf(disp_buf, "Root:%s Fld:cv%d", osc[0].getNoteName(), userConfig.Config.oscAParaCV);
         else
-            sprintf(disp_buf, "Root:%s Fold:%02d", osc[0].getNoteName(), osc[0].getFolding());
+            sprintf(disp_buf, "Root:%s Fld:%02d", osc[0].getNoteName(), userConfig.Config.oscAFolding);
     }
     else
     {
@@ -233,7 +238,7 @@ void interruptPWM()
     agc.setCurrentLevel(sum);
     pwm_set_gpio_level(OUT1, agc.getProcessedLevel(sum));
     pwm_set_gpio_level(OUT2, values[arpStep]);
-    pwm_set_gpio_level(OUT6, osc[0].getRandom16(PWM_RESO));
+    // pwm_set_gpio_level(OUT6, randFast.getRandom16(PWM_RESO));
 }
 
 void setup()
@@ -244,7 +249,9 @@ void setup()
     // }
     // delay(500);
 
-    analogReadResolution(12);
+    analogReadResolution(ADC_BIT);
+    pinMode(23, OUTPUT);
+    gpio_put(23, HIGH);
 
     pot.init(POT1);
     enc.init(EC1A, EC1B, true);
@@ -259,17 +266,17 @@ void setup()
     cv2.init(CV2);
     agc.init(PWM_RESO, OSCILLATOR_MAX, 0.35);
 
-    initEEPROM();
-    loadUserConfig(&userConfig);
+    userConfig.initEEPROM();
+    userConfig.loadUserConfig();
 
     for (int i = 0; i < OSCILLATOR_MAX; ++i)
     {
         osc[i].init(SAMPLE_FREQ);
-        osc[i].setWave((Oscillator::Wave)userConfig.oscAWave);
-        osc[i].setFrequencyFromNoteNameIndex(userConfig.oscACoarseIndex);
-        osc[i].setCourceFromNoteNameIndex(userConfig.oscACoarseIndex);
-        osc[i].addPhaseShift(userConfig.oscAPhaseShift);
-        osc[i].addFolding(userConfig.oscAFolding);
+        osc[i].setWave((MultiWaveOscEx::Wave)userConfig.Config.oscAWave);
+        osc[i].setFrequencyFromNoteNameIndex(userConfig.Config.oscACoarseIndex);
+        osc[i].setCourceFromNoteNameIndex(userConfig.Config.oscACoarseIndex);
+        osc[i].setPhaseShift(userConfig.Config.oscAPhaseShift);
+        osc[i].setFolding(userConfig.Config.oscAFolding);
         osc[i].startFolding(true);
     }
 
@@ -289,6 +296,8 @@ void setup()
     }
     pwm_set_mask_enabled(slice);
 
+    adcErrorCorrection.init(3.29f, 22.0f);
+
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }
 
@@ -301,12 +310,8 @@ void loop()
     int16_t cv2Value = cv2.analogReadDirectFast();
 
     agc.update(3);
-    
-    // ADC誤差補正
-    voct = constrain(voct - VOCTInputErrorLUT[voct] + userConfig.voctTune, 0, ADC_RESO + userConfig.voctTune);
 
-    // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
-    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
+    float powVOct = adcErrorCorrection.voctPow(voct);
 
     static uint8_t rootIndex = 0;
     float freq = osc[0].getCource() * powVOct;
@@ -352,51 +357,51 @@ void loop()
     //     rootConfirmCount = 0;
     // }
 
-    uint8_t rootDiff = (rootIndex - userConfig.oscACoarseIndex) % 12;
-    uint8_t scaleIndex = rootScaleIndexFromSemitone[userConfig.scale][rootDiff];
-    int8_t rootMinus = userConfig.rootMinus * -12;
-    int8_t seventhMinus = userConfig.seventhMinus * 12;
+    uint8_t rootDiff = (rootIndex - userConfig.Config.oscACoarseIndex) % 12;
+    uint8_t scaleIndex = rootScaleIndexFromSemitone[userConfig.Config.scale][rootDiff];
+    int8_t rootMinus = userConfig.Config.rootMinus * -12;
+    int8_t seventhMinus = userConfig.Config.seventhMinus * 12;
 
     // arpeggio
     if (gate.isEdgeHigh())
     {
-        if (userConfig.arpMode == 0)
+        if (userConfig.Config.arpMode == 0)
             arpStep = 0;
-        else if (userConfig.arpMode == 1)
+        else if (userConfig.Config.arpMode == 1)
             arpStep = constrainCyclic(arpStep + 1, 0, 3);
-        else if (userConfig.arpMode == 2)
+        else if (userConfig.Config.arpMode == 2)
             arpStep = constrainCyclic(arpStep - 1, 0, 3);
         else
-            arpStep = osc[0].getRandom16(4);
+            arpStep = randFast.getRandom16(4);
     }
 
-    if (userConfig.voctHold == 0 || (userConfig.voctHold == 1 && gate.getValue()))
+    if (userConfig.Config.voctHold == 0 || (userConfig.Config.voctHold == 1 && gate.getValue()))
     {
-        osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][0] + rootMinus);
-        osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][1]);
-        osc[2].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][2]);
-        osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.scale][scaleIndex][3] + seventhMinus);
+        osc[0].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.Config.scale][scaleIndex][0] + rootMinus);
+        osc[1].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.Config.scale][scaleIndex][1]);
+        osc[2].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.Config.scale][scaleIndex][2]);
+        osc[3].setFrequencyFromNoteNameIndex(rootIndex + addRootScale[userConfig.Config.scale][scaleIndex][3] + seventhMinus);
     }
 
-    if (userConfig.quantizeHold == 0 || (userConfig.quantizeHold == 1 && gate.getValue()))
+    if (userConfig.Config.quantizeHold == 0 || (userConfig.Config.quantizeHold == 1 && gate.getValue()))
     {
-        if (userConfig.quantizeCV > 0)
+        if (userConfig.Config.quantizeCV > 0)
         {
-            quantizer.setScale(userConfig.quantizeScale);
-            uint16_t semi = map(userConfig.quantizeCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, (7 * userConfig.quantizeOct));
+            quantizer.setScale(userConfig.Config.quantizeScale);
+            uint16_t semi = map(userConfig.Config.quantizeCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, (7 * userConfig.Config.quantizeOct));
             pwm_set_gpio_level(OUT5, constrain(quantizer.Quantize(semi) - PWMCVDCOutputErrorLUT[semi], 0, PWM_RESO - 1));
         }
     }
 
     // OSCA CVでパラメータ変更
-    if (userConfig.oscAParaCV > 0)
+    if (userConfig.Config.oscAParaCV > 0)
     {
-        int16_t shift = map(userConfig.oscAParaCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, 50);
+        int16_t shift = map(userConfig.Config.oscAParaCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, 50);
         requiresUpdate |= osc[0].setFolding(shift) & (menuIndex == 0);
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }
 
-    sleep_us(250); // 4kHz
+    sleep_us(100);
 }
 
 void setup1()
@@ -473,7 +478,7 @@ void loop1()
     case 0:
         if (unlock)
         {
-            userConfig.oscACoarseIndex = map(potValue, 0, ADC_RESO - 1, 0, VCO_MAX_ROOT_INDEX);
+            userConfig.Config.oscACoarseIndex = map(potValue, 0, ADC_RESO - 1, 0, VCO_MAX_ROOT_INDEX);
         }
         for (int i = 0; i < OSCILLATOR_MAX; ++i)
         {
@@ -481,27 +486,27 @@ void loop1()
             if (btn0 != 3)
             {
                 // OLED描画更新でノイズが乗るので必要時以外更新しない
-                requiresUpdate |= osc[i].setCourceFromNoteNameIndex(userConfig.oscACoarseIndex);
-                requiresUpdate |= osc[i].setWave((Oscillator::Wave)
-                                                     constrainCyclic((int)osc[i].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
+                requiresUpdate |= osc[i].setCourceFromNoteNameIndex(userConfig.Config.oscACoarseIndex);
+                requiresUpdate |= osc[i].setWave((MultiWaveOscEx::Wave)
+                                                     constrainCyclic((int)osc[i].getWave() + (int)encValue, 0, (int)MultiWaveOscEx::Wave::MAX));
 
-                userConfig.oscAWave = osc[i].getWave();
+                userConfig.Config.oscAWave = osc[i].getWave();
                 pwm_set_gpio_level(LED1, 0);
             }
             else if (btn0 == 3)
             {
-                if (userConfig.oscAWave == Oscillator::Wave::SAW || userConfig.oscAWave == Oscillator::Wave::MUL_TRI)
+                if (userConfig.Config.oscAWave == MultiWaveOscEx::Wave::SAW || userConfig.Config.oscAWave == MultiWaveOscEx::Wave::MUL_TRI)
                 {
                     osc[i].addPhaseShift((int)encValue);
                     // osc[i].setPhaseShift(osc[i].getPhaseShift() + osc[i].getRandom16(5));
-                    requiresUpdate |= userConfig.oscAPhaseShift != osc[i].getPhaseShift();
-                    userConfig.oscAPhaseShift = osc[i].getPhaseShift();
+                    requiresUpdate |= userConfig.Config.oscAPhaseShift != osc[i].getPhaseShift();
+                    userConfig.Config.oscAPhaseShift = osc[i].getPhaseShift();
                 }
-                else if (userConfig.oscAWave == Oscillator::Wave::TRI || userConfig.oscAWave == Oscillator::Wave::SINE)
+                else if (userConfig.Config.oscAWave == MultiWaveOscEx::Wave::TRI || userConfig.Config.oscAWave == MultiWaveOscEx::Wave::SINE)
                 {
                     osc[i].addFolding((int)encValue);
-                    requiresUpdate |= userConfig.oscAFolding != osc[i].getFolding();
-                    userConfig.oscAFolding = osc[i].getFolding();
+                    requiresUpdate |= userConfig.Config.oscAFolding != osc[i].getFolding();
+                    userConfig.Config.oscAFolding = osc[i].getFolding();
                 }
                 pwm_set_gpio_level(LED1, PWM_RESO -1);
             }
@@ -522,7 +527,7 @@ void loop1()
     {
         if (btn0 == 2)
         {
-            saveUserConfig(&userConfig);
+            userConfig.saveUserConfig();
             saveConfirm = false;
             requiresUpdate |= 1;
         }

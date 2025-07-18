@@ -8,24 +8,25 @@
 #include <Arduino.h>
 #include <hardware/pwm.h>
 #include <U8g2lib.h>
-#include "../../commonlib/common/Button.hpp"
-#include "../../commonlib/common/SmoothAnalogRead.hpp"
-#include "../../commonlib/common/RotaryEncoder.hpp"
-#include "../../commonlib/common/PollingTimeEvent.hpp"
-#include "../../commonlib/ui_common/SettingItem.hpp"
-#include "../../commonlib/common/EdgeChecker.hpp"
-#include "../../commonlib/common/epmkii_gpio.h"
-#include "../../commonlib/common/epmkii_basicconfig.h"
-#include "../../commonlib/common/pwm_wrapper.h"
-#include "Oscillator.hpp"
-#include "EepromData.h"
-#include "SmoothRandomCV.hpp"
-#include "CheapRhythm88.hpp"
-#include "../../commonlib/common/StateVariableFilter.hpp"
+#include <EEPROM.h>
+#include "../../common/lib/Button.hpp"
+#include "../../common/lib/SmoothAnalogRead.hpp"
+#include "../../common/lib/RotaryEncoder.hpp"
+#include "../../common/lib/ADCErrorCorrection.hpp"
+#include "../../common/lib/EepRomConfigIO.hpp"
+#include "../../common/ui_common/SettingItem.hpp"
+#include "../../common/lib/pwm_wrapper.h"
+#include "../../common/gpio_mapping.h"
+#include "../../common/basic_definition.h"
 
-#define PWM_RESO 2048 // 11bit
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8.0) // 32470.703125khz
-// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4.0) // 65khz
+#include "../../common/lib/PollingTimeEvent.hpp"
+#include "../../common/lib/EdgeChecker.hpp"
+
+#include "../../common/MultiWaveOscEx.hpp"
+#include "../../common/SmoothRandomCV.hpp"
+#include "UserConfig.h"
+
+// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8.0) // 32470.703125khz
 static uint interruptSliceNum;
 
 // 標準インターフェース
@@ -39,25 +40,21 @@ static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 static int pwmOuts[] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 static uint8_t pwmOutsCount = sizeof(pwmOuts) / sizeof(pwmOuts[0]);
+static ADCErrorCorrection adcErrorCorrection;
 
 // ユーザー設定
-static UserConfig userConfig;
+static EEPROMConfigIO<UserConfig> userConfig(0); 
 static bool saveConfirm = false;
 
 // triple vco
 #define VCO_MAX_ROOT_INDEX 96 // noteNameのC7
 #define LFO_MAX_COARSE_FREQ 33
 #define EXP_CURVE(value, ratio) (exp((value * (ratio / (ADC_RESO - 1)))) - 1) / (exp(ratio) - 1)
-static Oscillator osc[3];
+static MultiWaveOscEx osc[3];
 // static StateVariableFilter svf;
 
 // smooth random
 static SmoothRandomCV smoothRand(ADC_RESO);
-
-// cheaprhythm88
-int16_t cheapMode = 0;
-CheapRhythm88 cr88;
-const float adcTypeRatio = (double)CheapRhythm88::Type::DRUM_TYPE_MAX / ADC_RESO;
 
 // 画面周り
 #define MENU_MAX (3 + 1)
@@ -73,30 +70,24 @@ const char selcv[][5] = {"OFF", "CV1", "CV2"};
 
 SettingItem16 commonSettings[] =
 {
-    SettingItem16(0, 1, 1, &userConfig.rangeMode, "Range Mode: %s", vclfo, 2),
-    SettingItem16(0, 3, 1, &userConfig.oscBVOct, "VCO B VOCT: %s", selvoct, 4),
-    SettingItem16(0, 3, 1, &userConfig.oscCVOct, "LFO   VOCT: %s", selvoct, 4),
-    SettingItem16(0, 2, 1, &userConfig.oscAParaCV, "VCO A Para: %s", selcv, 3),
-    SettingItem16(0, 2, 1, &userConfig.oscBWaveCV, "VCO B Wave: %s", selcv, 3),
-    SettingItem16(-200, 200, 1, &userConfig.voctTune, "Init  VOCT:%4d", NULL, 0)
+    SettingItem16(0, 1, 1, &userConfig.Config.rangeMode, "Range Mode: %s", vclfo, 2),
+    SettingItem16(0, 3, 1, &userConfig.Config.oscBVOct, "VCO B VOCT: %s", selvoct, 4),
+    SettingItem16(0, 3, 1, &userConfig.Config.oscCVOct, "LFO   VOCT: %s", selvoct, 4),
+    SettingItem16(0, 2, 1, &userConfig.Config.oscAParaCV, "VCO A Para: %s", selcv, 3),
+    SettingItem16(0, 2, 1, &userConfig.Config.oscBWaveCV, "VCO B Wave: %s", selcv, 3),
+    SettingItem16(-200, 200, 1, &userConfig.Config.voctTune, "Init  VOCT:%4d", NULL, 0)
 };
 
 SettingItem16 smoothRandSettings[] =
 {
-    SettingItem16(0, 100, 1, &userConfig.smoothLevel, "CV Level: %d", NULL, 0),
-    SettingItem16(1, 100, 1, &userConfig.smoothncurve, "CV Curve: %d", NULL, 0),
-    SettingItem16(0, 32, 1, &userConfig.smoothMaxFreq, "LFO MaxF:%d", NULL, 0),
-};
-
-SettingItem16 cheapRhythm88Settings[] =
-{
-    SettingItem16(0, 1, 1, &cheapMode, "chap: %d", NULL, 0),
+    SettingItem16(0, 100, 1, &userConfig.Config.smoothLevel, "CV Level: %d", NULL, 0),
+    SettingItem16(1, 100, 1, &userConfig.Config.smoothncurve, "CV Curve: %d", NULL, 0),
+    SettingItem16(0, 32, 1, &userConfig.Config.smoothMaxFreq, "LFO MaxF:%d", NULL, 0),
 };
     
 static MenuSection16 menu[] = {
     {"SETTINGS", commonSettings, sizeof(commonSettings) / sizeof(commonSettings[0])},
     {"SMOOTH RND", smoothRandSettings, sizeof(smoothRandSettings) / sizeof(smoothRandSettings[0])},
-    {"CHEAPRHYTHM", cheapRhythm88Settings, sizeof(cheapRhythm88Settings) / sizeof(cheapRhythm88Settings[0])},
 };
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
@@ -126,20 +117,20 @@ void drawOSC(uint8_t oscIndex, uint8_t rangeMode)
     sprintf(disp_buf, "%s %s", modeDisp[rangeMode], oscNames[oscIndex]);
     u8g2.drawStr(0, 0, disp_buf);
 
-    if (osc[oscIndex].getWave() == Oscillator::Wave::SAW || osc[oscIndex].getWave() == Oscillator::Wave::MUL_TRI)
+    if (osc[oscIndex].getWave() == MultiWaveOsc::Wave::SAW || osc[oscIndex].getWave() == MultiWaveOsc::Wave::MUL_TRI)
     {
-        if (userConfig.oscAParaCV > 0)
-            sprintf(disp_buf, "%s p:cv%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), userConfig.oscAParaCV);
+        if (userConfig.Config.oscAParaCV > 0)
+            sprintf(disp_buf, "%s p:cv%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), userConfig.Config.oscAParaCV);
         else
-            sprintf(disp_buf, "%s p:%02d", osc[oscIndex].getNoteNameOrFreq(rangeMode), osc[oscIndex].getPhaseShift());
+            sprintf(disp_buf, "%s p:%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), osc[oscIndex].getPhaseShift());
     }
-    else if (osc[oscIndex].getWave() == Oscillator::Wave::TRI ||
-             osc[oscIndex].getWave() == Oscillator::Wave::SINE)
+    else if (osc[oscIndex].getWave() == MultiWaveOsc::Wave::TRI ||
+             osc[oscIndex].getWave() == MultiWaveOsc::Wave::SINE)
     {
-        if (userConfig.oscAParaCV > 0)
-            sprintf(disp_buf, "%s f:cv%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), userConfig.oscAParaCV);
+        if (userConfig.Config.oscAParaCV > 0)
+            sprintf(disp_buf, "%s f:cv%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), userConfig.Config.oscAParaCV);
         else
-            sprintf(disp_buf, "%s f:%02d", osc[oscIndex].getNoteNameOrFreq(rangeMode), osc[oscIndex].getFolding());
+            sprintf(disp_buf, "%s f:%d", osc[oscIndex].getNoteNameOrFreq(rangeMode), osc[oscIndex].getFolding());
     }
     else
     {
@@ -186,10 +177,10 @@ void dispOLED()
     switch (menuIndex)
     {
     case 0:
-        drawOSC(0, userConfig.rangeMode);
+        drawOSC(0, userConfig.Config.rangeMode);
         break;
     case 1:
-        drawOSC(1, userConfig.rangeMode);
+        drawOSC(1, userConfig.Config.rangeMode);
         break;
     case 2:
         drawOSC(2, 1);
@@ -223,16 +214,9 @@ void interruptPWM()
     uint16_t valueB = osc[1].getWaveValue();
     uint16_t valueC = osc[2].getWaveValue();
 
-    // svf.process(valueA);
-    // valueA = svf.lowPass();
-
     pwm_set_gpio_level(OUT1, valueA);
     pwm_set_gpio_level(OUT2, valueB);
     pwm_set_gpio_level(OUT3, valueC);
-    pwm_set_gpio_level(OUT4, osc[2].getRandom16(2048));
-
-    uint16_t cr88Value = cr88.process();
-    pwm_set_gpio_level(OUT6, cr88Value);
 }
 
 void setup()
@@ -243,7 +227,9 @@ void setup()
     // }
     // delay(500);
 
-    analogReadResolution(12);
+    analogReadResolution(ADC_BIT);
+    pinMode(23, OUTPUT);
+    gpio_put(23, HIGH);
 
     pot.init(POT1);
     enc.init(EC1A, EC1B, true);
@@ -257,30 +243,26 @@ void setup()
     cv1.init(CV1);
     cv2.init(CV2);
 
-    initEEPROM();
-    loadUserConfig(&userConfig);
+    userConfig.initEEPROM();
+    userConfig.loadUserConfig();
 
-    osc[0].init(SAMPLE_FREQ);
-    osc[0].setWave((Oscillator::Wave)userConfig.oscAWave);
-    osc[0].setFrequency(userConfig.oscACoarse);
-    osc[0].setFreqName(userConfig.oscACoarse);
-    osc[0].setPhaseShift(userConfig.oscAPhaseShift);
-    osc[0].setFolding(userConfig.oscAFolding);
-    osc[1].init(SAMPLE_FREQ);
-    osc[1].setWave((Oscillator::Wave)userConfig.oscBWave);
-    osc[1].setFrequency(userConfig.oscBCoarse);
-    osc[1].setFreqName(userConfig.oscBCoarse);
-    osc[1].setPhaseShift(userConfig.oscBPhaseShift);
-    osc[1].setFolding(userConfig.oscBFolding);
-    osc[2].init(SAMPLE_FREQ);
-    osc[2].setWave((Oscillator::Wave)userConfig.oscCWave);
-    osc[2].setFrequency(userConfig.oscCCoarse);
-    osc[2].setFreqName(userConfig.oscCCoarse);
+    osc[0].init(SAMPLE_FREQ, PWM_BIT);
+    osc[0].setWave((MultiWaveOsc::Wave)userConfig.Config.oscAWave);
+    osc[0].setFrequency(userConfig.Config.oscACoarse);
+    osc[0].setFreqName(userConfig.Config.oscACoarse);
+    osc[0].setPhaseShift(userConfig.Config.oscAPhaseShift);
+    osc[0].setFolding(userConfig.Config.oscAFolding);
+    osc[1].init(SAMPLE_FREQ, PWM_BIT);
+    osc[1].setWave((MultiWaveOsc::Wave)userConfig.Config.oscBWave);
+    osc[1].setFrequency(userConfig.Config.oscBCoarse);
+    osc[1].setFreqName(userConfig.Config.oscBCoarse);
+    osc[1].setPhaseShift(userConfig.Config.oscBPhaseShift);
+    osc[1].setFolding(userConfig.Config.oscBFolding);
+    osc[2].init(SAMPLE_FREQ, PWM_BIT);
+    osc[2].setWave((MultiWaveOsc::Wave)userConfig.Config.oscCWave);
+    osc[2].setFrequency(userConfig.Config.oscCCoarse);
+    osc[2].setFreqName(userConfig.Config.oscCCoarse);
     osc[2].setPhaseShift(0);
-
-    // svf.init(PWM_RESO, false);
-    // svf.setParameter(0.7, 0.8);
-    cr88.init(SAMPLE_FREQ, PWM_RESO);
 
     initPWM(OUT1, PWM_RESO, false);
     initPWM(OUT2, PWM_RESO, false);
@@ -298,6 +280,8 @@ void setup()
     }
     pwm_set_mask_enabled(slice);
 
+    adcErrorCorrection.init(3.29f, 22.0f);
+
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 
     // delay(500);
@@ -312,76 +296,58 @@ void loop()
     int16_t voct = vOct.analogReadDirectFast();
     int16_t cv1Value = cv1.analogReadDirectFast();
     int16_t cv2Value = cv2.analogReadDirectFast();
-    // ADC誤差補正
-    voct = constrain(voct - VOCTInputErrorLUT[voct] + userConfig.voctTune, 0, ADC_RESO + userConfig.voctTune);
-    cv1Value = constrain(cv1Value - VOCTInputErrorLUT[cv1Value] + userConfig.voctTune, 0, ADC_RESO + userConfig.voctTune);
-    cv2Value = constrain(cv2Value - VOCTInputErrorLUT[cv2Value] + userConfig.voctTune, 0, ADC_RESO + userConfig.voctTune);
 
-    // 0to5VのV/OCTの想定でmap変換。RP2040では抵抗分圧で5V->3.3Vにしておく
-    float powVOct = (float)pow(2, map(voct, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
-    float powCv1 = (float)pow(2, map(cv1Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
-    float powCv2 = (float)pow(2, map(cv2Value, 0, ADC_RESO - 1, 0, VOCT_MAX_MVOLT) * 0.001);
+    float powVOct = adcErrorCorrection.voctPow(voct);
+    float powCv1 = adcErrorCorrection.voctPow(cv1Value);
+    float powCv2 = adcErrorCorrection.voctPow(cv2Value);
 
-    float freqencyA = max(userConfig.oscACoarse * powVOct, 0.002);
+    float freqencyA = max(userConfig.Config.oscACoarse * powVOct, 0.002);
     float selVoctB = 1;
-    if (userConfig.oscBVOct == 1)
+    if (userConfig.Config.oscBVOct == 1)
         selVoctB = powVOct;
-    else if (userConfig.oscBVOct == 2)
+    else if (userConfig.Config.oscBVOct == 2)
         selVoctB = powCv1;
-    else if (userConfig.oscBVOct == 3)
+    else if (userConfig.Config.oscBVOct == 3)
         selVoctB = powCv2;
-    float freqencyB = max(userConfig.oscBCoarse * selVoctB, 0.002);
+    float freqencyB = max(userConfig.Config.oscBCoarse * selVoctB, 0.002);
 
     float selVoctC = 1;
-    if (userConfig.oscCVOct == 1)
+    if (userConfig.Config.oscCVOct == 1)
         selVoctC = powVOct;
-    else if (userConfig.oscCVOct == 2)
+    else if (userConfig.Config.oscCVOct == 2)
         selVoctC = powCv1;
-    else if (userConfig.oscCVOct == 3)
+    else if (userConfig.Config.oscCVOct == 3)
         selVoctC = powCv2;
-    float freqencyC = max(userConfig.oscCCoarse * selVoctC, 0.002);
+    float freqencyC = max(userConfig.Config.oscCCoarse * selVoctC, 0.002);
 
     osc[0].setFrequency(freqencyA);
     osc[1].setFrequency(freqencyB);
     osc[2].setFrequency(freqencyC);
 
     // OSCB CVで波形変更
-    if (userConfig.oscBWaveCV > 0)
+    if (userConfig.Config.oscBWaveCV > 0)
     {
-        int16_t shift = map(userConfig.oscBWaveCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, (int)Oscillator::Wave::SQU, (int)Oscillator::Wave::NOISE + 1);
-        // requiresUpdate |= osc[0].setWave((Oscillator::Wave)shift);
-        requiresUpdate |= osc[1].setWave((Oscillator::Wave)shift) & (menuIndex == 1);
+        int16_t shift = map(userConfig.Config.oscBWaveCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, (int)MultiWaveOsc::Wave::SQU, (int)MultiWaveOsc::Wave::NOISE + 1);
+        // requiresUpdate |= osc[0].setWave((MultiWaveOsc::Wave)shift);
+        requiresUpdate |= osc[1].setWave((MultiWaveOsc::Wave)shift) & (menuIndex == 1);
     }
 
     // OSCA CVでパラメータ変更
-    if (userConfig.oscAParaCV > 0)
+    if (userConfig.Config.oscAParaCV > 0)
     {
-        int16_t shift = map(userConfig.oscAParaCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, 50);
+        int16_t shift = map(userConfig.Config.oscAParaCV == 1 ? cv1Value : cv2Value, 0, ADC_RESO - 1, 0, (PWM_RESO >> 1) - 1);
         requiresUpdate |= osc[0].setFolding(shift) & (menuIndex == 0);
         requiresUpdate |= osc[0].setPhaseShift(shift) & (menuIndex == 0);
     }
 
     // smooth random
-    smoothRand.setCurve(userConfig.smoothncurve);
-    smoothRand.setMaxFreq(userConfig.smoothMaxFreq);
-    smoothRand.setMaxLevel(userConfig.smoothLevel);
+    smoothRand.setCurve(userConfig.Config.smoothncurve);
+    smoothRand.setMaxFreq(userConfig.Config.smoothMaxFreq);
+    smoothRand.setMaxLevel(userConfig.Config.smoothLevel);
     smoothRand.update(false, false);
     // float lastFreq = smoothRand.getFreq();
     int16_t lastLevel = smoothRand.getLevel();
     pwm_set_gpio_level(OUT5, lastLevel);
-
-    static CheapRhythm88::Type drum = CheapRhythm88::Type::DRUM_KICK;
-    float drumtype = cv1Value * adcTypeRatio;
-    int16_t pitchMod = (drumtype - (int)drumtype) * 100;
-    if (gate.isEdgeHigh())
-    {
-        cr88.start();
-    }
-    drum = (CheapRhythm88::Type)(drumtype);
-
-    // cheap rhythm
-    cr88.setCheapMode(cheapMode ? true : false);
-    cr88.update(drum, pitchMod, cv2Value);
 
     // static uint8_t dispCount = 0;
     // dispCount++;
@@ -393,22 +359,22 @@ void loop()
     //     // Serial.print(", ");
     //     // Serial.print(cv2Value);
     //     // Serial.print(", ");
-    //     Serial.print(userConfig.oscACoarse);
+    //     Serial.print(userConfig.Config.oscACoarse);
     //     Serial.print(", ");
     //     Serial.print(freqencyA);
     //     Serial.print(", ");
-    //     Serial.print(userConfig.oscBCoarse);
+    //     Serial.print(userConfig.Config.oscBCoarse);
     //     Serial.print(", ");
     //     Serial.print(freqencyB);
     //     Serial.print(", ");
-    //     Serial.print(userConfig.oscCCoarse);
+    //     Serial.print(userConfig.Config.oscCCoarse);
     //     Serial.print(", ");
     //     Serial.print(freqencyC);
     //     Serial.print(", ");
     //     Serial.println();
     // }
 
-    // sleep_us(20); // 10kHz
+    sleep_us(20); // 10kHz
     tight_loop_contents();
 }
 
@@ -485,94 +451,94 @@ void loop1()
     case 0:
         if (unlock)
         {
-            if (userConfig.rangeMode)
+            if (userConfig.Config.rangeMode)
             {
-                userConfig.oscACoarse = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
-                requiresUpdate |= osc[0].setNoteNameFromFrequency(userConfig.oscACoarse);
-                requiresUpdate |= osc[0].setFreqName(userConfig.oscACoarse);
+                userConfig.Config.oscACoarse = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
+                requiresUpdate |= osc[0].setNoteNameFromFrequency(userConfig.Config.oscACoarse);
+                requiresUpdate |= osc[0].setFreqName(userConfig.Config.oscACoarse);
             }
             else
             {
                 int16_t root = map(potValue, 0, ADC_RESO - 1, 0, VCO_MAX_ROOT_INDEX);
                 requiresUpdate |= osc[0].setCourceFromNoteNameIndex(root);
-                userConfig.oscACoarse = osc[0].getCource();
+                userConfig.Config.oscACoarse = osc[0].getCource();
             }
         }
         // OLED描画更新でノイズが乗るので必要時以外更新しない
         if (btn0 != 3)
         {
-            requiresUpdate |= osc[0].setWave((Oscillator::Wave)
-                                                 constrainCyclic((int)osc[0].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
-            userConfig.oscAWave = osc[0].getWave();
+            requiresUpdate |= osc[0].setWave((MultiWaveOsc::Wave)
+                                                 constrainCyclic((int)osc[0].getWave() + (int)encValue, 0, (int)MultiWaveOsc::Wave::MAX));
+            userConfig.Config.oscAWave = osc[0].getWave();
         }
         else if (btn0 == 3)
         {
-            if (userConfig.oscAWave == Oscillator::Wave::SAW || userConfig.oscAWave == Oscillator::Wave::MUL_TRI)
+            if (userConfig.Config.oscAWave == MultiWaveOsc::Wave::SAW || userConfig.Config.oscAWave == MultiWaveOsc::Wave::MUL_TRI)
             {
                 osc[0].addPhaseShift((int)encValue);
-                requiresUpdate |= userConfig.oscAPhaseShift != osc[0].getPhaseShift();
-                userConfig.oscAPhaseShift = osc[0].getPhaseShift();
+                requiresUpdate |= userConfig.Config.oscAPhaseShift != osc[0].getPhaseShift();
+                userConfig.Config.oscAPhaseShift = osc[0].getPhaseShift();
             }
-            else if (userConfig.oscAWave == Oscillator::Wave::TRI ||
-                     userConfig.oscAWave == Oscillator::Wave::SINE)
+            else if (userConfig.Config.oscAWave == MultiWaveOsc::Wave::TRI ||
+                     userConfig.Config.oscAWave == MultiWaveOsc::Wave::SINE)
             {
                 osc[0].addFolding((int)encValue);
-                requiresUpdate |= userConfig.oscAFolding != osc[0].getFolding();
-                userConfig.oscAFolding = osc[0].getFolding();
+                requiresUpdate |= userConfig.Config.oscAFolding != osc[0].getFolding();
+                userConfig.Config.oscAFolding = osc[0].getFolding();
             }
         }
         break;
     case 1:
         if (unlock)
         {
-            if (userConfig.rangeMode)
+            if (userConfig.Config.rangeMode)
             {
-                userConfig.oscBCoarse = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
-                requiresUpdate |= osc[1].setNoteNameFromFrequency(userConfig.oscBCoarse);
-                requiresUpdate |= osc[1].setFreqName(userConfig.oscBCoarse);
+                userConfig.Config.oscBCoarse = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
+                requiresUpdate |= osc[1].setNoteNameFromFrequency(userConfig.Config.oscBCoarse);
+                requiresUpdate |= osc[1].setFreqName(userConfig.Config.oscBCoarse);
             }
             else
             {
                 int16_t root = map(potValue, 0, ADC_RESO - 1, 0, VCO_MAX_ROOT_INDEX);
                 requiresUpdate |= osc[1].setCourceFromNoteNameIndex(root);
-                userConfig.oscBCoarse = osc[1].getCource();
+                userConfig.Config.oscBCoarse = osc[1].getCource();
             }
         }
         // OLED描画更新でノイズが乗るので必要時以外更新しない
         if (btn0 != 3)
         {
-            requiresUpdate |= osc[1].setWave((Oscillator::Wave)
-                                                 constrainCyclic((int)osc[1].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
-            userConfig.oscBWave = osc[1].getWave();
+            requiresUpdate |= osc[1].setWave((MultiWaveOsc::Wave)
+                                                 constrainCyclic((int)osc[1].getWave() + (int)encValue, 0, (int)MultiWaveOsc::Wave::MAX));
+            userConfig.Config.oscBWave = osc[1].getWave();
         }
         else if (btn0 == 3)
         {
-            if (userConfig.oscBWave == Oscillator::Wave::SAW || userConfig.oscBWave == Oscillator::Wave::MUL_TRI)
+            if (userConfig.Config.oscBWave == MultiWaveOsc::Wave::SAW || userConfig.Config.oscBWave == MultiWaveOsc::Wave::MUL_TRI)
             {
                 osc[1].addPhaseShift((int)encValue);
-                requiresUpdate |= userConfig.oscBPhaseShift != osc[1].getPhaseShift();
-                userConfig.oscBPhaseShift = osc[1].getPhaseShift();
+                requiresUpdate |= userConfig.Config.oscBPhaseShift != osc[1].getPhaseShift();
+                userConfig.Config.oscBPhaseShift = osc[1].getPhaseShift();
             }
-            else if (userConfig.oscBWave == Oscillator::Wave::TRI ||
-                     userConfig.oscBWave == Oscillator::Wave::SINE)
+            else if (userConfig.Config.oscBWave == MultiWaveOsc::Wave::TRI ||
+                     userConfig.Config.oscBWave == MultiWaveOsc::Wave::SINE)
             {
                 osc[1].addFolding((int)encValue);
-                requiresUpdate |= userConfig.oscBFolding != osc[1].getFolding();
-                userConfig.oscBFolding = osc[1].getFolding();
+                requiresUpdate |= userConfig.Config.oscBFolding != osc[1].getFolding();
+                userConfig.Config.oscBFolding = osc[1].getFolding();
             }
         }
         break;
     case 2:
         if (unlock)
         {
-            userConfig.oscCCoarse = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
-            requiresUpdate |= osc[2].setNoteNameFromFrequency(userConfig.oscCCoarse);
-            requiresUpdate |= osc[2].setFreqName(userConfig.oscCCoarse);
+            userConfig.Config.oscCCoarse = EXP_CURVE((float)potValue, 2.0) * LFO_MAX_COARSE_FREQ;
+            requiresUpdate |= osc[2].setNoteNameFromFrequency(userConfig.Config.oscCCoarse);
+            requiresUpdate |= osc[2].setFreqName(userConfig.Config.oscCCoarse);
         }
         // OLED描画更新でノイズが乗るので必要時以外更新しない
-        requiresUpdate |= osc[2].setWave((Oscillator::Wave)
-                                             constrainCyclic((int)osc[2].getWave() + (int)encValue, 0, (int)Oscillator::Wave::MAX));
-        userConfig.oscCWave = osc[2].getWave();
+        requiresUpdate |= osc[2].setWave((MultiWaveOsc::Wave)
+                                             constrainCyclic((int)osc[2].getWave() + (int)encValue, 0, (int)MultiWaveOsc::Wave::MAX));
+        userConfig.Config.oscCWave = osc[2].getWave();
         break;
     default:
         requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
@@ -598,7 +564,7 @@ void loop1()
     {
         if (btn0 == 2)
         {
-            saveUserConfig(&userConfig);
+            userConfig.saveUserConfig();
             saveConfirm = false;
             requiresUpdate |= 1;
         }

@@ -8,20 +8,21 @@
 #include <Arduino.h>
 #include <hardware/pwm.h>
 #include <U8g2lib.h>
-#include "../../commonlib/common/Button.hpp"
-#include "../../commonlib/common/SmoothAnalogRead.hpp"
-#include "../../commonlib/common/RotaryEncoder.hpp"
-#include "../../commonlib/common/PollingTimeEvent.hpp"
-#include "../../commonlib/ui_common/SettingItem.hpp"
-#include "../../commonlib/common/EdgeChecker.hpp"
-#include "../../commonlib/common/epmkii_gpio.h"
-#include "../../commonlib/common/epmkii_basicconfig.h"
-#include "../../commonlib/common/pwm_wrapper.h"
+#include <EEPROM.h>
+#include "../../common/lib/Button.hpp"
+#include "../../common/lib/SmoothAnalogRead.hpp"
+#include "../../common/lib/RotaryEncoder.hpp"
+#include "../../common/lib/ADCErrorCorrection.hpp"
+#include "../../common/lib/EepRomConfigIO.hpp"
+#include "../../common/ui_common/SettingItem.hpp"
+#include "../../common/lib/pwm_wrapper.h"
+#include "../../common/gpio_mapping.h"
+#include "../../common/basic_definition.h"
 
-#include "OscilloscopeLite.hpp"
+#include "../../common/lib/PollingTimeEvent.hpp"
+#include "../../common/lib/EdgeChecker.hpp"
+#include "../../common/OscilloscopeLite.hpp"
 
-#define PWM_RESO 2048                                 // 11bit
-#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
 static uint interruptSliceNum;
 
 static const float semi2DacRatio = (PWM_RESO - 1) / 60.0;
@@ -192,7 +193,9 @@ void setup()
     // }
     // delay(500);
 
-    analogReadResolution(12);
+    analogReadResolution(ADC_BIT);
+    pinMode(23, OUTPUT);
+    gpio_put(23, HIGH);
 
     pot.init(POT1);
     enc.init(EC1A, EC1B, true);
@@ -239,7 +242,7 @@ void loop()
     pwm_set_gpio_level(OUT5, outputValue);
     pwm_set_gpio_level(OUT6, outputValue);
 
-    vOctValue = vOctValue - VOCTInputErrorLUT[vOctValue];
+    // vOctValue = vOctValue - VOCTInputErrorLUT[vOctValue];
 
     if (menuIndex == 0)
     {

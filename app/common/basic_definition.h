@@ -8,10 +8,18 @@
 #pragma once
 #include <Arduino.h>
 
+// 基本使用設定
 #define CPU_CLOCK 133000000.0
 #define INTR_PWM_RESO 512
-#define VOCT_MAX_MVOLT 5000 // mV
+#define PWM_BIT 11
+#define PWM_RESO 2048
+#define ADC_BIT 12
 #define ADC_RESO 4096
+#define DAC_MAX_MILLVOLT 5000 // mV
+#define DAC_BIT 12
+#define DAC_RESO 4096
+// #define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 8) // 32470.703125khz
+#define SAMPLE_FREQ ((CPU_CLOCK / INTR_PWM_RESO) / 4.0) // 65khz
 
 // EPmkII VOCT用誤差補正 LUT（20次多項式フィット, int16_t）
 const int16_t VOCTInputErrorLUT[4096] = {

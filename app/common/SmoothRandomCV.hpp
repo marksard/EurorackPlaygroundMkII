@@ -7,7 +7,7 @@
 
 #pragma once
 #include <Arduino.h>
-#include "../../commonlib/common/RandomFast.hpp"
+#include "lib/RandomFast.hpp"
 
 class SmoothRandomCV
 {

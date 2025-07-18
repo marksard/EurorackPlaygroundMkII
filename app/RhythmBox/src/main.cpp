@@ -5,23 +5,28 @@
  * see https://opensource.org/licenses/MIT
  */
 
+
 #include <Arduino.h>
 #include <hardware/pwm.h>
 #include <U8g2lib.h>
-#include "../../commonlib/common/Button.hpp"
-#include "../../commonlib/common/SmoothAnalogRead.hpp"
-#include "../../commonlib/common/RotaryEncoder.hpp"
-#include "../../commonlib/common/EdgeChecker.hpp"
-#include "../../commonlib/common/TriggerOut.hpp"
-#include "../../commonlib/common/PollingTimeEvent.hpp"
-#include "../../commonlib/common/ActiveGainControl.hpp"
-#include "../../commonlib/ui_common/SettingItem.hpp"
-#include "../../commonlib/common/epmkii_gpio.h"
-#include "../../commonlib/common/epmkii_basicconfig.h"
-#include "../../commonlib/common/pwm_wrapper.h"
+#include <EEPROM.h>
+#include "../../common/lib/Button.hpp"
+#include "../../common/lib/SmoothAnalogRead.hpp"
+#include "../../common/lib/RotaryEncoder.hpp"
+#include "../../common/lib/ADCErrorCorrection.hpp"
+#include "../../common/lib/EepRomConfigIO.hpp"
+#include "../../common/ui_common/SettingItem.hpp"
+#include "../../common/lib/pwm_wrapper.h"
+#include "../../common/gpio_mapping.h"
+#include "../../common/basic_definition.h"
+
+#include "../../common/lib/PollingTimeEvent.hpp"
+#include "../../common/lib/EdgeChecker.hpp"
+#include "../../common/lib/ActiveGainControl.hpp"
+
 #include "PatternSeq.hpp"
 #include "SingleShotWave.hpp"
-#include "EepromData.h"
+#include "UserConfig.h"
 
 // #include "wavetable/909_01/909_BD_Norm.h"
 #include "wavetable/808_01/808_BD_02.h"
@@ -47,7 +52,7 @@ SingleShotWave BD(buf_808_BD_02, buf_size_808_BD_02);
 SingleShotWave<int16_t> *pKit[SEQUENCER_TOTAL];
 bool isSDFill = false;
 
-#define PWM_RESO 2048         // 11bit
+#undef SAMPLE_FREQ
 #define SAMPLE_FREQ 44100 // 再生ファイルにあわせる
 static uint interruptSliceNum;
 
@@ -62,7 +67,7 @@ static EdgeChecker cv2;
 static int pwmOuts[6] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 
 // ユーザー設定
-static UserConfig userConfig;
+static EEPROMConfigIO<UserConfig> userConfig(0); 
 static bool saveConfirm = false;
 
 // 画面周り
@@ -85,68 +90,68 @@ const char selIndication[][5] = {"OFF", "ON"};
 
 SettingItemF settings[] =
 {
-    SettingItemF(0.0, 1.0, 1.00, &userConfig.isUpdateStepIndicator, "STEP: %s", selIndication, 2),
-    SettingItemF(0.0, 1.5, 0.02, &userConfig.agcMaxGain, "GAIN: %4.2f", NULL, 0),
+    SettingItemF(0.0, 1.0, 1.00, &userConfig.Config.isUpdateStepIndicator, "STEP: %s", selIndication, 2),
+    SettingItemF(0.0, 1.5, 0.02, &userConfig.Config.agcMaxGain, "GAIN: %4.2f", NULL, 0),
 };
 
 SettingItemF muteSettings[] =
 {
-    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[0], "RC: %s", selMute, 2),
-    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[1], "HH: %s", selMute, 2),
-    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[2], "LT: %s", selMute, 2),
-    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[3], "RM: %s", selMute, 2),
-    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[4], "SD: %s", selMute, 2),
-    SettingItemF(0.0, 1.0, 1.0, &userConfig.mutes[5], "BD: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.Config.mutes[0], "RC: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.Config.mutes[1], "HH: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.Config.mutes[2], "LT: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.Config.mutes[3], "RM: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.Config.mutes[4], "SD: %s", selMute, 2),
+    SettingItemF(0.0, 1.0, 1.0, &userConfig.Config.mutes[5], "BD: %s", selMute, 2),
 };
 
 SettingItemF volumeSettings[] =
 {
-    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[0], "RC: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[1], "HH: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[2], "LT: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[3], "RM: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[4], "SD: %4.2f", NULL, 0),
-    SettingItemF(0.1, 1.0, 0.05, &userConfig.volumes[5], "BD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.Config.volumes[0], "RC: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.Config.volumes[1], "HH: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.Config.volumes[2], "LT: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.Config.volumes[3], "RM: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.Config.volumes[4], "SD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 1.0, 0.05, &userConfig.Config.volumes[5], "BD: %4.2f", NULL, 0),
 };
 
 SettingItemF panSettings[] =
 {
-    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[0], "RC: %s", selPan, 5),
-    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[1], "HH: %s", selPan, 5),
-    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[2], "LT: %s", selPan, 5),
-    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[3], "RM: %s", selPan, 5),
-    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[4], "SD: %s", selPan, 5),
-    SettingItemF(0.0, 4.0, 1.0, &userConfig.pans[5], "BD: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.Config.pans[0], "RC: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.Config.pans[1], "HH: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.Config.pans[2], "LT: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.Config.pans[3], "RM: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.Config.pans[4], "SD: %s", selPan, 5),
+    SettingItemF(0.0, 4.0, 1.0, &userConfig.Config.pans[5], "BD: %s", selPan, 5),
 };
 
 SettingItemF decaySettings[] =
 {
-    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[0], "RC %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[1], "HH %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[2], "LT %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[3], "RM %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[4], "SD %4.2f", NULL, 0),
-    SettingItemF(0.01, 1.0, 0.01, &userConfig.decays[5], "BD %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.Config.decays[0], "RC %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.Config.decays[1], "HH %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.Config.decays[2], "LT %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.Config.decays[3], "RM %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.Config.decays[4], "SD %4.2f", NULL, 0),
+    SettingItemF(0.01, 1.0, 0.01, &userConfig.Config.decays[5], "BD %4.2f", NULL, 0),
 };
 
 SettingItemF pitchSettings[] =
 {
-    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[0], "RC: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[1], "HH: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[2], "LT: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[3], "RM: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[4], "SD: %4.2f", NULL, 0),
-    SettingItemF(0.1, 2.0, 0.01, &userConfig.pitches[5], "BD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.Config.pitches[0], "RC: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.Config.pitches[1], "HH: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.Config.pitches[2], "LT: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.Config.pitches[3], "RM: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.Config.pitches[4], "SD: %4.2f", NULL, 0),
+    SettingItemF(0.1, 2.0, 0.01, &userConfig.Config.pitches[5], "BD: %4.2f", NULL, 0),
 };
 
 SettingItemF trigSettings[] =
 {
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[0], "RC: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[1], "HH: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[2], "LT: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[3], "RM: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[4], "SD: %s", selTrigger, 4),
-    SettingItemF(0.0, 3.0, 1.0, &userConfig.triggers[5], "BD: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.Config.triggers[0], "RC: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.Config.triggers[1], "HH: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.Config.triggers[2], "LT: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.Config.triggers[3], "RM: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.Config.triggers[4], "SD: %s", selTrigger, 4),
+    SettingItemF(0.0, 3.0, 1.0, &userConfig.Config.triggers[5], "BD: %s", selTrigger, 4),
 };
 
 static MenuSectionF menu[] = {
@@ -200,7 +205,7 @@ void dispOLED()
 {
     if (menuIndex < 6) {
         seq.updateDisplay(&u8g2, clockCount & (STEP_MAX - 1), menuIndex, encMode, 
-        requiresUpdate, userConfig.isUpdateStepIndicator > 0.1 ? true : false);
+        requiresUpdate, userConfig.Config.isUpdateStepIndicator > 0.1 ? true : false);
         if (saveConfirm)
         {
             saveDisp();
@@ -231,7 +236,7 @@ void interruptPWM()
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
         int16_t level = pKit[i]->updateWave();
-        uint16_t pan = (uint16_t)userConfig.pans[i];
+        uint16_t pan = (uint16_t)userConfig.Config.pans[i];
         uint16_t panL = pan <= 2 ? 0 : pan - 2;
         uint16_t panR = pan >= 2 ? 0 : 2 - pan;
         levelL += level >> panL;
@@ -255,7 +260,9 @@ void setup()
     // }
     // delay(500);
 
-    analogReadResolution(12);
+    analogReadResolution(ADC_BIT);
+    pinMode(23, OUTPUT);
+    gpio_put(23, HIGH);
 
     pot.init(POT1);
     enc.init(EC1A, EC1B, true);
@@ -270,6 +277,9 @@ void setup()
     // gain最大値の設定は全部同時に鳴ることはほぼないため大きめにしている
     agc.init(PWM_RESO, SEQUENCER_TOTAL, 0.9);
 
+    userConfig.initEEPROM();
+    userConfig.loadUserConfig();
+
     pinMode(LED1, OUTPUT);
     pinMode(LED2, OUTPUT);
 
@@ -279,9 +289,6 @@ void setup()
     initPWM(OUT4, PWM_RESO);
     initPWM(OUT5, PWM_RESO);
     initPWM(OUT6, PWM_RESO);
-
-    initEEPROM();
-    loadUserConfig(&userConfig);
 
     pKit[0] = &RC;
     pKit[1] = &OH;
@@ -295,12 +302,12 @@ void setup()
     seq.setPatternName(3, "RM");
     seq.setPatternName(4, "SD");
     seq.setPatternName(5, "BD");
-    seq.setPattern(0, (uint8_t)userConfig.pattern[0]);
-    seq.setPattern(1, (uint8_t)userConfig.pattern[1]);
-    seq.setPattern(2, (uint8_t)userConfig.pattern[2]);
-    seq.setPattern(3, (uint8_t)userConfig.pattern[3]);
-    seq.setPattern(4, (uint8_t)userConfig.pattern[4]);
-    seq.setPattern(5, (uint8_t)userConfig.pattern[5]);
+    seq.setPattern(0, (uint8_t)userConfig.Config.pattern[0]);
+    seq.setPattern(1, (uint8_t)userConfig.Config.pattern[1]);
+    seq.setPattern(2, (uint8_t)userConfig.Config.pattern[2]);
+    seq.setPattern(3, (uint8_t)userConfig.Config.pattern[3]);
+    seq.setPattern(4, (uint8_t)userConfig.Config.pattern[4]);
+    seq.setPattern(5, (uint8_t)userConfig.Config.pattern[5]);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }
@@ -314,7 +321,7 @@ void loop()
     bool cv2Value = cv2.isEdgeHigh();
     bool trig = clockEdge.isEdgeHigh();
 
-    agc.setGainMax(userConfig.agcMaxGain);
+    agc.setGainMax(userConfig.Config.agcMaxGain);
 
     if (trig)
     {
@@ -328,20 +335,20 @@ void loop()
 
     for (int i = 0; i < SEQUENCER_TOTAL; ++i)
     {
-        pKit[i]->setSpeed(userConfig.pitches[i]);
-        pKit[i]->setVolume(userConfig.volumes[i]);
-        pKit[i]->updateDecay(userConfig.decays[i]);
-        if (userConfig.triggers[i] == 1)
+        pKit[i]->setSpeed(userConfig.Config.pitches[i]);
+        pKit[i]->setVolume(userConfig.Config.volumes[i]);
+        pKit[i]->updateDecay(userConfig.Config.decays[i]);
+        if (userConfig.Config.triggers[i] == 1)
         {
             pKit[i]->play(voctValue);
             continue;
         }
-        else if (userConfig.triggers[i] == 2)
+        else if (userConfig.Config.triggers[i] == 2)
         {
             pKit[i]->play(cv1Value);
             continue;
         }
-        else if (userConfig.triggers[i] == 3)
+        else if (userConfig.Config.triggers[i] == 3)
         {
             pKit[i]->play(cv2Value);
             continue;
@@ -456,7 +463,7 @@ void loop1()
         uint8_t btn1 = buttons[1].getState();
         if (btn0 == 2)
         {
-            saveUserConfig(&userConfig);
+            userConfig.saveUserConfig();
             saveConfirm = false;
             requiresUpdate |= 1;
         }
@@ -475,7 +482,7 @@ void loop1()
         if (encMode)
         {
             requiresUpdate |= seq.addSelectPattern(menuIndex, encValue);
-            userConfig.pattern[menuIndex] = seq.getPattern(menuIndex);
+            userConfig.Config.pattern[menuIndex] = seq.getPattern(menuIndex);
         }
     }
     else
@@ -496,7 +503,7 @@ void loop1()
         }
         else
         {
-            pKit[mute]->setMute(userConfig.mutes[mute] > 0.8 ? true : false);
+            pKit[mute]->setMute(userConfig.Config.mutes[mute] > 0.8 ? true : false);
         }
     }
 

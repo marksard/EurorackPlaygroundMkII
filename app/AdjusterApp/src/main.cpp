@@ -132,37 +132,37 @@ void dispOLED()
     u8g2.sendBuffer();
 }
 
-void checkVOct()
+void calibration(float &vref, float &noiseFloor)
 {
-    // voct誤差表示用
-    static int16_t lastVOctValue = 0;
-    static bool flag = false;
-    static int8_t count = 0;
-    static int32_t vOctMean = 0;
-    if (vOctValue > lastVOctValue + 30 || vOctValue < lastVOctValue - 30)
+    Serial.println("VOCT Calibration");
+    pwm_set_gpio_level(OUT3, 0);
+    sleep_ms(500);
+    noiseFloor = adcErrorCorrection.getADCAvg16(VOCT);
+    pwm_set_gpio_level(OUT3, 2047);
+    sleep_ms(500);
+    float adc = adcErrorCorrection.getADCAvg16(VOCT);
+    Serial.print("ADC at 5V:");
+    Serial.print(adc);
+    if (adc >= 4093)
     {
-        flag = true;
+        // 3.26989付近なので半分の電圧から推定しなおす
+        pwm_set_gpio_level(OUT3, 1024);
+        sleep_ms(500);
+        adc = adcErrorCorrection.getADCAvg16(VOCT);
+        Serial.print(" at 2.5V:");
+        Serial.print(adc);
+        adc *= 2;
     }
-    lastVOctValue = vOctValue;
-    if (flag)
-    {
-        vOctMean += vOctValue;
-        count++;
-        if (count >= 16)
-        {
-            vOctMean = vOctMean >> 4;
-            Serial.print(vOctMean);
-            Serial.println("");
-            flag = false;
-            count = 0;
-            vOctMean = 0;
-            // outputSemiSelect++;
-            // if (outputSemiSelect > 60)
-            // {
-            //     outputSemiSelect = 0;
-            // }
-        }
-    }
+    pwm_set_gpio_level(OUT3, 0);
+
+    vref = adcErrorCorrection.getADC2VRef(adc);
+    vref = 3.3f;
+    noiseFloor = 20.0f;
+    adcErrorCorrection.generateLUT(vref, noiseFloor);
+    Serial.print(" vref:");
+    Serial.print(vref, 4);
+    Serial.print(" noiseFloor:");
+    Serial.println(noiseFloor);
 }
 
 void interruptPWM()
@@ -188,12 +188,6 @@ void interruptPWM()
 
 void setup()
 {
-    // Serial.begin(9600);
-    // while (!Serial)
-    // {
-    // }
-    // delay(500);
-
     analogReadResolution(ADC_BIT);
     pinMode(23, OUTPUT);
     gpio_put(23, HIGH);
@@ -218,53 +212,39 @@ void setup()
     initPWM(OUT5, PWM_RESO);
     initPWM(OUT6, PWM_RESO);
 
+    // ADC LOG Mode
+    if (gpio_get(BTN1) == false)
+    {
+        while (!Serial)
+        {
+        }
 
-    // ///////////////////////
-    // while (!Serial)
-    // {
-    // }
-    // delay(500);
+        float vref = 0.0;
+        float noiseFloor = 0.0;
+        calibration(vref, noiseFloor);
+        sleep_ms(100);
+        Serial.println("out,raw_adc,raw_diff,cor_adc,cor_diff");
+        for (int i = 0; i < PWM_RESO; ++i)
+        {
+            pwm_set_gpio_level(OUT3, i);
+            sleep_ms(1);
+            int16_t raw_adc = adcErrorCorrection.getADCAvg16(VOCT);
+            int16_t raw_diff = (i * 2) - raw_adc;
+            Serial.print(i * 2);
+            Serial.print(",");
+            Serial.print(raw_adc);
+            Serial.print(",");
+            Serial.print(raw_diff);
+            int16_t cor_adc = (int)adcErrorCorrection.correctedAdc(raw_adc);
+            int16_t cor_diff = (i * 2) - cor_adc;
+            Serial.print(",");
+            Serial.print(cor_adc);
+            Serial.print(",");
+            Serial.print(cor_diff);
+            Serial.println();
+        }
+    }
 
-    // /////////
-    // float noiseFloor = adcErrorCorrection.getADCAvg16(VOCT);
-    // adcErrorCorrection.generateINL(noiseFloor);
-    // pwm_set_gpio_level(OUT3, 2047);
-    // sleep_ms(1000);
-    // uint16_t adc = adcErrorCorrection.getADCAvg16(VOCT);
-    // float vref = adcErrorCorrection.getADC2VRef(adc);
-    // float vspecRef = adcErrorCorrection.getSpeculationVRef();
-    // adcErrorCorrection.generateLUT(vref);
-    // Serial.print(" noiseFloor:");
-    // Serial.print(noiseFloor);
-    // Serial.print(" adc:");
-    // Serial.print(adc);
-    // Serial.print(" vref:");
-    // Serial.print(vref, 4);
-    // Serial.print(" sim vref:");
-    // Serial.print(vspecRef, 4);
-    // Serial.println();
-
-    // ///////// raw adc input
-    // Serial.println("out,raw_adc,raw_diff,cor_adc,cor_diff");
-    // for (int i = 0; i < PWM_RESO; ++i)
-    // {
-    //     pwm_set_gpio_level(OUT3, i);
-    //     sleep_ms(1);
-    //     int16_t adc = adcErrorCorrection.getADCAvg16(VOCT);
-    //     int16_t diff = (i * 2) - adc;
-    //     Serial.print(i * 2);
-    //     Serial.print(",");
-    //     Serial.print(adc);
-    //     Serial.print(",");
-    //     Serial.print(diff);
-    //     adc = (int)adcErrorCorrection.correctedAdc(adc);
-    //     diff = (i * 2) - adc;
-    //     Serial.print(",");
-    //     Serial.print(adc);
-    //     Serial.print(",");
-    //     Serial.print(diff);
-    //     Serial.println();
-    // }
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }
@@ -405,7 +385,6 @@ void loop1()
 
         requiresUpdate |= menuControl.addValue2CurrentSetting(encValue);
         requiresUpdate = 1;
-        checkVOct();
         break;
     }
 

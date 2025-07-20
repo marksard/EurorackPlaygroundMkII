@@ -177,7 +177,7 @@ public:
     bool setPhaseShift(int16_t value)
     {
         bool result = _phaseShift != value;
-        _phaseShift = constrain(value, 0, _heightHalf - 1);
+        _phaseShift = constrain(value, -_heightHalf, _heightHalf - 1);
         return result;
     }
 
@@ -192,7 +192,7 @@ public:
     bool setFolding(int16_t value)
     {
         bool result = _folding != value;
-        _folding = constrain(value, 0, _heightHalf - 1);
+        _folding = constrain(value, -_heightHalf, _heightHalf - 1);
         return result;
     }
 

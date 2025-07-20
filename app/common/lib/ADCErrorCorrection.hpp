@@ -25,28 +25,26 @@
 // Integral and Differential Nonlinearity (INL/DNL)
 // https://pico-adc.markomo.me/INL-DNL/
 
-// 以下の複数の目的を持つ
 // ・RP2040 ADCのエラッタの補正(INL/DNL)
-// ・温度センサからVrefを推測し、V/OCT電圧から周波数に変換するLUTを生成
-// 5000mVを3269.9mV(3.3Vレギュレータ誤差1%最低ラインを想定)に分圧し
-// てADCへ入力している回路を使うことが前提
+// ・デフォルト5000mV分圧→3269.9mV(3.3Vレギュ-1%ライン)回路対応
 class ADCErrorCorrection
 {
 public:
     ADCErrorCorrection()
     {
-        _lastVref = 0.0f;
-        _noiseFloor = 0.0f;
+        _lastVref = 0.0;
+        _noiseFloor = 0.0;
         for (int i = 0; i < 4096; ++i)
         {
-            _voctPow[i] = 0.0f;
-            _INL[i] = 0.0f;
+            _voctPow[i] = 0.0;
+            _INL[i] = 0.0;
             _correctedAdc[i] = 0;
-            // _voct[i] = 0.0f;
+            // _voct[i] = 0.0;
         }
 
         // デフォルト3.26989Vだと意図的に3.3Vから1%近く下げててINLへ与える影響があるため差分を補完
-        _inlRatio = 1.0f - (_adc_input_max / 3.3f);
+        _inlRatio = (1.0 - (_adc_input_max / 3.3)) * -1;
+        // _inlRatio = -0.01;
     }
 
     ADCErrorCorrection(float adc_input_max)
@@ -56,94 +54,16 @@ public:
         ADCErrorCorrection();
     }
 
-    void init(float vref = 0.0f, float noiseFloor = 0.0f)
+    void init(float vref, float noiseFloor)
     {
-        generateINL(noiseFloor);
-        // adc_init();ほかで読んでなければ呼ぶ
-        if (vref == 0.0f)
-        {
-            vref = getSpeculationVRef(true);
-        }
-        else {
-            _lastVref = vref;
-        }
-
-        generate(vref);
+        generateLUT(vref, noiseFloor);
     }
 
-    void generateLUT(float vref = 0.0f)
+    void generateLUT(float vref, float noiseFloor)
     {
-        if (vref == 0.0f)
-        {
-            vref = getSpeculationVRef(false);
-        }
-        else {
-            _lastVref = vref;
-        }
-
-        generate(vref);
-    }
-
-    // INL生成
-    void generateINL(float noiseFloor = 0.0f)
-    {
-        // Serial.print(" _inlRatio:");
-        // Serial.println(_inlRatio, 6);
-        _noiseFloor = noiseFloor;
-        // DNLスパイク箇所（例：+8.9 LSB）、その累積によるINL
-        const int spikes[] = {512, 1536, 2560, 3584};
-        // 初期値として実機計測値に近似する値で初期化
-        for (int i = 0; i < 4096; ++i)
-        {
-            // 計測でノイズがある場合は一律下げる
-            if (noiseFloor > 0.0f)
-            {
-                // 最後は除いて初期値をいれてく
-                if (i < 4095)
-                {
-                    _INL[i] = (-_inlRatio * i) - noiseFloor;
-                }
-            }
-            else
-            {
-                if (i < 4095)
-                {
-                    _INL[i] = (-_inlRatio * i);
-                }
-            }
-        }
-
-        for (int i = 0; i < 4; ++i)
-        {
-            int spike_pos = spikes[i];
-            // スパイク以降すべてに誤差を足していく（積分）
-            for (int j = spike_pos - 2; j < 4096; ++j)
-            {
-                // 実機計測の感じからspike1個手前から8.9f、2つ手前は4.45fとした
-                if (spike_pos - 1 > j)
-                {
-                    _INL[j] += 2.5f; // 4.45 LSBを累積
-                }
-                else {
-                    _INL[j] += 8.9f; // 8.9 LSBを累積
-                }
-            }
-        }
-    }
-
-    float getSpeculationVRef(bool waiting = false)
-    {
-        adc_set_temp_sensor_enabled(true);
-        if (waiting)
-            sleep_ms(100); // センサの安定化待ち
-        uint16_t raw = getADCAvg16(4); // ADC4温度センサ
-        adc_set_temp_sensor_enabled(false);
-        // 適当な係数で3V3電圧を推定
-        float vref = 0.695f * 4095 / raw;
-        // float vref = 0.6961f * 4095 / raw;
-        // float vref = 0.6988f * 4095 / raw;
         _lastVref = vref;
-        return vref;
+        generateINL(noiseFloor);
+        generate(vref);
     }
 
     uint16_t getADCAvg16(int8_t pin)
@@ -162,7 +82,7 @@ public:
 
     float getADC2VRef(int16_t adc)
     {
-        float vref = (_adc_input_max * 4095.0f) / adc;
+        float vref = (_adc_input_max * 4095.0) / adc;
         return vref;
     }
 
@@ -195,15 +115,49 @@ public:
     // }
 
 protected:
+    // INL生成
+    void generateINL(float noiseFloor)
+    {
+        // Serial.print(" _inlRatio:");
+        // Serial.println(_inlRatio, 6);
+        _noiseFloor = noiseFloor;
+        // DNLスパイク箇所（例：+8.9 LSB）、その累積によるINL
+        const int spikes[] = {512, 1536, 2560, 3584};
+        const float spikeLSBs[] = {8.9, 8.9, 8.9, 8.9};
+        // 初期値として実機計測値に近似する値で初期化
+        for (int i = 0; i < 4096; ++i)
+        {
+            // ノイズを考慮（とりあえずリニアに影響度を下げていく）
+            _INL[i] = (_inlRatio * i) - (noiseFloor - ((noiseFloor / 4095) * i));
+        }
+
+        for (int i = 0; i < 4; ++i)
+        {
+            int spike_pos = spikes[i];
+            // スパイク以降すべてに誤差を足していく（積分）
+            for (int j = spike_pos - 2; j < 4096; ++j)
+            {
+                // 実機計測の感じからspike1個手前を調整
+                if (spike_pos - 1 > j)
+                {
+                    _INL[j] += spikeLSBs[i] / 3.0;
+                }
+                else {
+                    _INL[j] += spikeLSBs[i];
+                }
+            }
+        }
+    }
+
     // LUT生成
     void generate(float vref)
     {
-        float lsb_voltage = vref / 4095.0f; // 1 LSBあたりの電圧
+        float lsb_voltage = vref / 4095.0; // 1 LSBあたりの電圧
         for (int adc = 0; adc < 4096; ++adc)
         {
             // INLでADCコードを補正（floatに変換して）
             float correctedAdc = adc + _INL[adc];                   // LSB単位で補正
-            correctedAdc = constrain(correctedAdc, 0.0f, 4095.0f); // 範囲を0〜4095に制限
+            correctedAdc = constrain(correctedAdc, 0.0, 4095.0); // 範囲を0〜4095に制限
             float voltage = correctedAdc * lsb_voltage;
             float voct = voltage * _scale;
             _correctedAdc[adc] = correctedAdc;
@@ -220,9 +174,9 @@ protected:
     // float _voct[4096];
     float _INL[4096];
     // V/OCT入力電圧最大
-    const float _input_max = 5.0f;
+    const float _input_max = 5.0;
     // 0.1%精密抵抗分圧によるADCへの最大入力電圧
-    const float _adc_input_max = 189000.0f / (100000.0f + 189000.0f) * _input_max; 
+    const float _adc_input_max = 189000.0 / (100000.0 + 189000.0) * _input_max; 
     const float _scale = _input_max / _adc_input_max;
     float _inlRatio;
 };

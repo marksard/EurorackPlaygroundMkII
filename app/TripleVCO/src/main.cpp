@@ -40,7 +40,7 @@ static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 static int pwmOuts[] = { OUT1, OUT2, OUT3, OUT4, OUT5, OUT6 };
 static uint8_t pwmOutsCount = sizeof(pwmOuts) / sizeof(pwmOuts[0]);
-static ADCErrorCorrection adcErrorCorrection(3.3f);
+static ADCErrorCorrection adcErrorCorrection(3.3);
 
 // ユーザー設定
 static EEPROMConfigIO<UserConfig> userConfig(0); 
@@ -206,38 +206,6 @@ void dispOLED()
     u8g2.sendBuffer();
 }
 
-void calibration(float &vref, float &noiseFloor)
-{
-    Serial.println("VOCT Calibration");
-    pwm_set_gpio_level(OUT3, 0);
-    sleep_ms(500);
-    noiseFloor = adcErrorCorrection.getADCAvg16(VOCT);
-    pwm_set_gpio_level(OUT3, 2047);
-    sleep_ms(500);
-    float adc = adcErrorCorrection.getADCAvg16(VOCT);
-    Serial.print("ADC at 5V:");
-    Serial.print(adc);
-    if (adc >= 4093)
-    {
-        // 3.26989付近なので半分の電圧から推定しなおす
-        pwm_set_gpio_level(OUT3, 1024);
-        sleep_ms(500);
-        adc = adcErrorCorrection.getADCAvg16(VOCT);
-        Serial.print(" at 2.5V:");
-        Serial.print(adc);
-        adc *= 2;
-    }
-    pwm_set_gpio_level(OUT3, 0);
-
-    // vref = adcErrorCorrection.getADC2VRef(adc);
-    vref = 3.3f;
-    adcErrorCorrection.generateLUT(vref, noiseFloor);
-    Serial.print(" vref:");
-    Serial.print(vref, 4);
-    Serial.print(" noiseFloor:");
-    Serial.println(noiseFloor);
-}
-
 void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
@@ -312,7 +280,7 @@ void setup()
     }
     pwm_set_mask_enabled(slice);
 
-    adcErrorCorrection.init(3.3f, 20.0f);
+    adcErrorCorrection.init(3.3, 20.0);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 

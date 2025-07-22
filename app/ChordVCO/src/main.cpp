@@ -44,7 +44,7 @@ static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
 static int pwmOuts[] = {OUT1, OUT2, OUT3, OUT4, OUT5, OUT6};
 static uint8_t pwmOutsCount = sizeof(pwmOuts) / sizeof(pwmOuts[0]);
-static ADCErrorCorrection adcErrorCorrection(3.3f);
+static ADCErrorCorrection adcErrorCorrection(3.3);
 
 // ユーザー設定
 static EEPROMConfigIO<UserConfig> userConfig(0); 
@@ -300,7 +300,7 @@ void setup()
     }
     pwm_set_mask_enabled(slice);
 
-    adcErrorCorrection.init(3.295f, 25.0f);
+    adcErrorCorrection.init(3.3, 20.0);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
 }

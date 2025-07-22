@@ -19,6 +19,7 @@
 #include "../../common/gpio_mapping.h"
 #include "../../common/basic_definition.h"
 
+#include "../../common/lib/MultiWaveOsc.hpp"
 #include "../../common/lib/PollingTimeEvent.hpp"
 #include "../../common/lib/EdgeChecker.hpp"
 #include "../../common/OscilloscopeLite.hpp"
@@ -36,7 +37,7 @@ static SmoothAnalogRead vOct;
 static EdgeChecker gate;
 static SmoothAnalogRead cv1;
 static SmoothAnalogRead cv2;
-static ADCErrorCorrection adcErrorCorrection(3.3f);
+static ADCErrorCorrection adcErrorCorrection(3.3);
 
 //////////////////////////////////////////
 // entries
@@ -51,6 +52,7 @@ static int16_t bias = 0;
 static int16_t outputValue = 0;
 static int16_t outputSemiSelect = 0;
 static OscilloscopeLite oscillo(SAMPLE_FREQ);
+static MultiWaveOsc osc;
 
 //////////////////////////////////////////
 
@@ -136,33 +138,32 @@ void calibration(float &vref, float &noiseFloor)
 {
     Serial.println("VOCT Calibration");
     pwm_set_gpio_level(OUT3, 0);
-    sleep_ms(500);
-    noiseFloor = adcErrorCorrection.getADCAvg16(VOCT);
+    sleep_ms(50);
+    noiseFloor = adcErrorCorrection.getADCMax16(VOCT);
     pwm_set_gpio_level(OUT3, 2047);
-    sleep_ms(500);
-    float adc = adcErrorCorrection.getADCAvg16(VOCT);
+    sleep_ms(50);
+    float adc = adcErrorCorrection.getADCMax16(VOCT);
     Serial.print("ADC at 5V:");
     Serial.print(adc);
     if (adc >= 4093)
     {
         // 3.26989付近なので半分の電圧から推定しなおす
         pwm_set_gpio_level(OUT3, 1024);
-        sleep_ms(500);
-        adc = adcErrorCorrection.getADCAvg16(VOCT);
+        sleep_ms(50);
+        adc = adcErrorCorrection.getADCMax16(VOCT);
         Serial.print(" at 2.5V:");
         Serial.print(adc);
         adc *= 2;
     }
     pwm_set_gpio_level(OUT3, 0);
-
+    sleep_ms(50);
     vref = adcErrorCorrection.getADC2VRef(adc);
-    vref = 3.3f;
-    noiseFloor = 20.0f;
-    adcErrorCorrection.generateLUT(vref, noiseFloor);
     Serial.print(" vref:");
     Serial.print(vref, 4);
     Serial.print(" noiseFloor:");
     Serial.println(noiseFloor);
+
+    adcErrorCorrection.generateLUT(vref, noiseFloor);
 }
 
 void interruptPWM()
@@ -183,6 +184,8 @@ void interruptPWM()
     default:
         break;
     }
+    
+    // pwm_set_gpio_level(OUT1, osc.getWaveValue());
     // gpio_put(LED1, LOW);
 }
 
@@ -212,6 +215,12 @@ void setup()
     initPWM(OUT5, PWM_RESO);
     initPWM(OUT6, PWM_RESO);
 
+    adcErrorCorrection.init(3.3, 20.0);
+
+    // osc.init(SAMPLE_FREQ, PWM_BIT);
+    // osc.setWave(MultiWaveOsc::Wave::SQU);
+    // osc.setFrequency(33);
+
     // ADC LOG Mode
     if (gpio_get(BTN1) == false)
     {
@@ -229,7 +238,7 @@ void setup()
             pwm_set_gpio_level(OUT3, i);
             sleep_ms(1);
             int16_t raw_adc = adcErrorCorrection.getADCAvg16(VOCT);
-            int16_t raw_diff = (i * 2) - raw_adc;
+            int16_t raw_diff = (i * 2) - adcErrorCorrection.correctedInputScaleAdc(raw_adc);
             Serial.print(i * 2);
             Serial.print(",");
             Serial.print(raw_adc);
@@ -269,7 +278,9 @@ void loop()
     pwm_set_gpio_level(OUT5, outputValue);
     pwm_set_gpio_level(OUT6, outputValue);
 
-    // vOctValue = vOctValue - VOCTInputErrorLUT[vOctValue];
+    // float voctPowV = adcErrorCorrection.voctPow(vOctValue);
+    // float vOctFreq = osc.getFreqFromNoteIndex(24) * voctPowV;
+    // osc.setFrequency(vOctFreq);
 
     if (menuIndex == 0)
     {

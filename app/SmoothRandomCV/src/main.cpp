@@ -9,23 +9,23 @@
 #include <hardware/pwm.h>
 #include <U8g2lib.h>
 #include <EEPROM.h>
-#include "../../common/lib/Button.hpp"
-#include "../../common/lib/SmoothAnalogRead.hpp"
-#include "../../common/lib/RotaryEncoder.hpp"
-#include "../../common/lib/ADCErrorCorrection.hpp"
-#include "../../common/lib/EepRomConfigIO.hpp"
-#include "../../common/ui_common/SettingItem.hpp"
-#include "../../common/lib/pwm_wrapper.h"
-#include "../../common/gpio_mapping.h"
-#include "../../common/basic_definition.h"
+#include "lib/Button.hpp"
+#include "lib/SmoothAnalogRead.hpp"
+#include "lib/RotaryEncoder.hpp"
+#include "lib/ADCErrorCorrection.hpp"
+#include "lib/EEPROMConfigIO.hpp"
+#include "ui_common/SettingItem.hpp"
+#include "lib/pwm_wrapper.h"
+#include "gpio_mapping.h"
+#include "basic_definition.h"
 
-#include "../../common/lib/PollingTimeEvent.hpp"
-#include "../../common/lib/TriggerOut.hpp"
-#include "../../common/lib/EdgeChecker.hpp"
-#include "../../common/lib/RandomFast.hpp"
+#include "lib/PollingTimeEvent.hpp"
+#include "lib/TriggerOut.hpp"
+#include "lib/EdgeChecker.hpp"
+#include "lib/RandomFast.hpp"
 
-#include "../../common/MultiWaveOscEx.hpp"
-#include "../../common/SmoothRandomCV.hpp"
+#include "MultiWaveOscEx.hpp"
+#include "SmoothRandomCV.hpp"
 
 static uint interruptSliceNum;
 
@@ -128,12 +128,6 @@ void interruptPWM()
 
 void setup()
 {
-    // Serial.begin(9600);
-    // while (!Serial)
-    // {
-    // }
-    // delay(500);
-
     analogReadResolution(ADC_BIT);
     pinMode(23, OUTPUT);
     gpio_put(23, HIGH);
@@ -146,7 +140,6 @@ void setup()
     vOct.init(VOCT);
     cv1.init(CV1);
     cv2.init(CV2);
-    // pinMode(GATE, INPUT);
     clockEdge.init(GATE);
     pollingEvent.setBPM(133, 4);
     pollingEvent.start();
@@ -170,8 +163,6 @@ void setup()
     lfo.setFolding(0);
 
     initPWMIntr(PWM_INTR_PIN, interruptPWM, &interruptSliceNum, SAMPLE_FREQ, INTR_PWM_RESO, CPU_CLOCK);
-
-    // delay(500);
 }
 
 void loop()
@@ -231,20 +222,8 @@ void loop()
         rndMultiplyOut.update(pollingEvent.ready());
     }
 
-    // static uint8_t dispCount = 0;
-    // dispCount++;
-    // if (dispCount == 0)
-    // {
-    //     Serial.print(clockEdge.getBPM());
-    //     Serial.print(", ");
-    //     Serial.print(pollingEvent.getBPM());
-    //     Serial.print(", ");
-    //     Serial.print(cv2Value);
-    //     Serial.println();
-    // }
-
-    sleep_us(50); // 20kHz
-    // sleep_ms(1);
+    tight_loop_contents();
+    sleep_us(250);
 }
 
 void setup1()
@@ -256,6 +235,8 @@ void setup1()
 
 void loop1()
 {
+    tight_loop_contents();
+
     if (!updateOLED.ready())
     {
         sleep_ms(1);

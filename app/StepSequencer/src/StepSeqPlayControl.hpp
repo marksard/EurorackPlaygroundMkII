@@ -8,11 +8,11 @@
 #pragma once
 #include <Arduino.h>
 #include <U8g2lib.h>
-#include "../../common/lib/TriggerInterface.hpp"
-#include "../../common/lib/PollingTimeEvent.hpp"
-#include "../../common/lib/SyncInTrigger.hpp"
-#include "../../common/lib/TriggerOut.hpp"
-#include "../../common/basic_definition.h"
+#include "lib/TriggerInterface.hpp"
+#include "lib/PollingTimeEvent.hpp"
+#include "lib/SyncInTrigger.hpp"
+#include "lib/TriggerOut.hpp"
+#include "basic_definition.h"
 #include "StepSeqModel.hpp"
 #include "StepSeqView.hpp"
 

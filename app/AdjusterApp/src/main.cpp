@@ -9,20 +9,20 @@
 #include <hardware/pwm.h>
 #include <U8g2lib.h>
 #include <EEPROM.h>
-#include "../../common/lib/Button.hpp"
-#include "../../common/lib/SmoothAnalogRead.hpp"
-#include "../../common/lib/RotaryEncoder.hpp"
-#include "../../common/lib/ADCErrorCorrection.hpp"
-#include "../../common/lib/EepRomConfigIO.hpp"
-#include "../../common/ui_common/SettingItem.hpp"
-#include "../../common/lib/pwm_wrapper.h"
-#include "../../common/gpio_mapping.h"
-#include "../../common/basic_definition.h"
+#include "lib/Button.hpp"
+#include "lib/SmoothAnalogRead.hpp"
+#include "lib/RotaryEncoder.hpp"
+#include "lib/ADCErrorCorrection.hpp"
+#include "lib/EEPROMConfigIO.hpp"
+#include "ui_common/SettingItem.hpp"
+#include "lib/pwm_wrapper.h"
+#include "gpio_mapping.h"
+#include "basic_definition.h"
 
-#include "../../common/lib/MultiWaveOsc.hpp"
-#include "../../common/lib/PollingTimeEvent.hpp"
-#include "../../common/lib/EdgeChecker.hpp"
-#include "../../common/OscilloscopeLite.hpp"
+#include "lib/MultiWaveOsc.hpp"
+#include "lib/PollingTimeEvent.hpp"
+#include "lib/EdgeChecker.hpp"
+#include "OscilloscopeLite.hpp"
 
 static uint interruptSliceNum;
 
@@ -52,7 +52,7 @@ static int16_t bias = 0;
 static int16_t outputValue = 0;
 static int16_t outputSemiSelect = 0;
 static OscilloscopeLite oscillo(SAMPLE_FREQ);
-static MultiWaveOsc osc;
+// static MultiWaveOsc osc;
 
 //////////////////////////////////////////
 

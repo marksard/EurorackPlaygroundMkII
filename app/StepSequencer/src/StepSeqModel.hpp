@@ -7,7 +7,7 @@
 
 #pragma once
 #include <Arduino.h>
-#include "../../common/lib/RandomFast.hpp"
+#include "lib/RandomFast.hpp"
 
 #define DEF_MAX_STEP 16
 #define DEF_MAX_STEP_M1 (DEF_MAX_STEP - 1)

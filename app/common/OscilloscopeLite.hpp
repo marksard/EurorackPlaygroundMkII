@@ -36,15 +36,15 @@ const static uint16_t FRM_DIV_SPAN = (FRM_SIZE / FRM_DIV);
 #define DATA_MAX_VALUE_F 4095.0
 #define DATA_MAX_VOLT 5.0
 #define DRAW_AREA_SIZE FRM_SIZE
-#define HORIZONTAL_SCALE_MAX 50
+#define HORIZONTAL_SCALE_MAX 100
 // スナップショットサイズ：トリガー検出範囲をサイズに指定しているので描画サイズの2倍必要）
 // リングバッファサイズ：レコード範囲（スナップショット取得時に間引きして取得するのでスナップショットサイズの倍数になる）
 const static uint16_t SNAPSHOT_SIZE = DRAW_AREA_SIZE * 2;
-const static uint16_t RING_BUF_DATA_SIZE = (SNAPSHOT_SIZE * HORIZONTAL_SCALE_MAX);
+const static int RING_BUF_DATA_SIZE = (SNAPSHOT_SIZE * HORIZONTAL_SCALE_MAX);
 // スナップショットからの間引き数を大まかに設定させる
-#define SNAPSHOT_INDEX_MAX 10
+#define SNAPSHOT_INDEX_MAX 6
 const static uint16_t snapshotSteps[SNAPSHOT_INDEX_MAX] = {
-    1, 2, 5, 10, 20, 30, 40, 50, 100, 200};
+    1, 2, 5, 10, 25, 50};
 
 class RingBuff
 {

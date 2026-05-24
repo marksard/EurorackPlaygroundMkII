@@ -52,11 +52,11 @@ public:
 
     /// @brief AGCの更新
     /// @param decaySpeed
-    inline void update(uint8_t decaySpeed = 1)
+    inline void update(float decaySpeed = 1.0)
     {
         // レベルが大きくなったら上書き。それ以外は徐々に減衰
         _peak = (_level > _peak) ? _level : _peak - decaySpeed;
-        _gain = std::min(_divs / _peak, _gainMax);
+        _gain = min(_divs / _peak, _gainMax);
     }
 
     /// @brief AGCの最大ゲインを設定
@@ -84,7 +84,7 @@ private:
     int16_t _bias;
     int32_t _gainMax;
     int32_t _divs;
-    int16_t _peak;
+    float _peak;
     int32_t _gain;
     int16_t _level;
 };

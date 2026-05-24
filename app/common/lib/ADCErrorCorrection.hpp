@@ -72,10 +72,39 @@ public:
         {
             adc_select_input(pin);
             raw += adc_read();
-            sleep_us(250);
+            sleep_ms(2);
         }
 
         raw = raw >> 4;
+        return raw;
+    }
+
+    uint16_t getADCAvg16Fast(int8_t pin)
+    {
+        uint16_t raw = 0;
+        pin = pin == 4 ? 4 : pin - A0;
+        adc_select_input(pin);
+        for (int i = 0; i < 16; ++i)
+        {
+            raw += adc_read();
+        }
+
+        raw = raw >> 4;
+        return raw;
+    }
+
+    uint16_t getADCMin16(int8_t pin)
+    {
+        uint16_t raw = -1;
+        pin = pin == 4 ? 4 : pin - A0;
+        for (int i = 0; i < 16; ++i)
+        {
+            adc_select_input(pin);
+            uint16_t tmp = adc_read();
+            raw = min(tmp, raw);
+            sleep_ms(2);
+        }
+
         return raw;
     }
 
@@ -88,8 +117,38 @@ public:
             adc_select_input(pin);
             uint16_t tmp = adc_read();
             raw = max(tmp, raw);
-            sleep_us(250);
+            sleep_ms(2);
         }
+
+        return raw;
+    }
+
+    uint16_t getADCTrimAvg16(int8_t pin)
+    {
+        int raw = 0;
+        pin = pin == 4 ? 4 : pin - A0;
+
+        int16_t minValue = 4095;
+        int16_t maxValue = -1;
+        int16_t avgValues[16] = {0};
+        for (int i = 0; i < 16; ++i)
+        {
+            adc_select_input(pin);
+            adc_read();
+            sleep_ms(2);
+            int16_t value = adc_read();
+            avgValues[i] = value;
+            minValue = min(minValue, value);
+            maxValue = max(maxValue, value);
+        }
+
+        for (int i = 0; i < 16; ++i)
+        {
+            if (avgValues[i] == minValue) continue;
+            if (avgValues[i] == maxValue) continue;
+            raw += avgValues[i];
+        }
+        raw = raw / 14;
 
         return raw;
     }

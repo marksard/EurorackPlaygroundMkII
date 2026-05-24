@@ -27,8 +27,14 @@ public:
         _pin = pin;
         _value = 0;
         _valueOld = 65535;
-        pinMode(pin, INPUT);
-        adc_init();
+        if (_adc_initted == false)
+        {
+            analogReadResolution(12);
+            adc_init();
+            _adc_initted = true;
+        }
+        adc_gpio_init(pin);
+        // pinMode(pin, INPUT);
     }
 
     uint16_t analogReadDirectFast()
@@ -95,6 +101,7 @@ public:
     }
 
 protected:
+    static bool _adc_initted;
     byte _pin;
     uint16_t _value;
     uint16_t _valueOld;
@@ -115,3 +122,5 @@ protected:
         return ::analogRead(_pin);
     }
 };
+
+bool SmoothAnalogRead::_adc_initted = false;

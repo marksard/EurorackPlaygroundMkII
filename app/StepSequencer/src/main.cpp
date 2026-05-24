@@ -97,7 +97,7 @@ SettingItem16 euclidSettings[] =
     SettingItem16(0, 1, 1, &userConfig.Config.euclidOnsetsSource, "SRC:%s", euclidOnsetsSources, 2),
 };
 
-SettingItem16 shettings[] =
+SettingItem16 shSettings[] =
 {
     SettingItem16(0, 1, 1, &userConfig.Config.shTrigger, "TRG:%s", shTriggers, 2),
     SettingItem16(0, 1, 1, &userConfig.Config.shSource, "SRC:%s", shSources, 2),
@@ -112,7 +112,7 @@ static MenuSection16 menu[] = {
 
 static MenuSection16 menu2[] = {
     {"EUCLIDTRIG", euclidSettings, sizeof(euclidSettings) / sizeof(euclidSettings[0])},
-    {"SAMPL&HOLD", shettings, sizeof(shettings) / sizeof(shettings[0])}
+    {"SAMPL&HOLD", shSettings, sizeof(shSettings) / sizeof(shSettings[0])}
 };
 
 static MenuControl16 menuControl(menu, sizeof(menu) / sizeof(menu[0]));
@@ -207,10 +207,8 @@ void dispOLED()
 void interruptPWM()
 {
     pwm_clear_irq(interruptSliceNum);
-    // gpio_put(LED1, HIGH);
 
     int8_t ready = sspc.updateProcedure();
-
     // euclid
     if (ready)
     {
@@ -235,8 +233,6 @@ void interruptPWM()
     }
 
     requiresUpdate |= ready;
-
-    // gpio_put(LED1, LOW);
 }
 
 void setup()
@@ -340,11 +336,6 @@ void loop()
 
     int length = sspc.getStepDulation();
     euclidTrig.setDuration(length >> 1);
-
-    // Serial.print(cv1Value);
-    // Serial.print(", ");
-    // Serial.print(cv2Value);
-    // Serial.println();
 
     tight_loop_contents();
     sleep_us(100);
@@ -539,4 +530,5 @@ void loop1()
     }
 
     dispOLED();
+    tight_loop_contents();
 }
